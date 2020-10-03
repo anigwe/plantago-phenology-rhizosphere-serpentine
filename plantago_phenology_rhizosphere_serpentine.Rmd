@@ -1,0 +1,1436 @@
+---
+title: "P. erecta phenology"
+author: "Alexandria igwe"
+date: "5/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#Load libraries
+```{r}
+library(phyloseq)
+library(dplyr)
+library(ggpubr)
+library(vegan)
+library(ggplot2)
+library(lubridate)
+library(lme4)
+library(survival)
+library(survminer)
+library(DESeq2)
+library(car)
+library(emmeans)
+library(viridis)
+```
+#Microbial Community Analysis
+##Import data
+```{r import data, include=FALSE}
+otu <- readRDS("~/Desktop/R/serpnon_timeseries/input/serpnon_timeseries_otu_dada.rds")
+tax <- readRDS("~/Desktop/R/serpnon_timeseries/input/serpnon_timeseries_silva.rds")
+fitGTR <- readRDS("~/Desktop/R/serpnon_timeseries/input/seqtab.nochim_tree.RDS")
+ps.metadata <- read.csv("~/Desktop/R/serpnon_timeseries/input/timeseries_metadata_phyloseq.csv",row.names=2)
+```
+##Create phyloseq objects
+```{r otu table, include=FALSE}
+OTU = otu_table(otu, taxa_are_rows=FALSE)
+TAX = tax_table(as.matrix(tax))
+TREE = phy_tree(fitGTR$tree)
+META <- sample_data(ps.metadata)
+ps = phyloseq(OTU, TAX, TREE, META)
+ps
+```
+###Remove mitochondria and chloroplast
+```{r remove mitochondria, include=FALSE}
+ps.bact <- ps %>%
+  subset_taxa(
+    Kingdom == "Bacteria" &
+    Family  != "Mitochondria" &
+    Class   != "Chloroplast"
+  )
+ps.bact
+```
+###Change taxa names to Seq #
+```{r}
+taxa_names(ps.bact) <- paste0("Seq", seq(ntaxa(ps.bact)))
+dim(otu_table(ps.bact))
+```
+###Normalize sequences
+```{r}
+ps.bact_prop <- transform_sample_counts(ps.bact, function(x) x/sum(x))
+ps.bact_prop <- subset_taxa(ps.bact_prop,taxa_sums(ps.bact_prop)>0)
+ps.bact_prop
+dim(otu_table(ps.bact_prop))
+```
+##labels
+```{r}
+microbe_labels <- c("nonserpentine"="NS Microbes", "serpentine"="S Microbes")
+```
+##Subset samples
+###A-F soil types
+```{r, include=FALSE}
+ps.bact.af <- ps.bact %>%
+  subset_samples(
+    soil_let == "A" |
+    soil_let == "B" |
+    soil_let == "C" |
+    soil_let == "D" |
+    soil_let == "E" |
+    soil_let == "F" |
+    soil_let != "CON")
+
+ps.bact.af <- ps.bact.af %>%
+  subset_samples(pds!="5")
+
+ps.bact.af
+```
+```{r}
+ps.bact.af_prop <- ps.bact_prop %>%
+  subset_samples(
+    soil_let == "A" |
+    soil_let == "B" |
+    soil_let == "C" |
+    soil_let == "D" |
+    soil_let == "E" |
+    soil_let == "F" |
+    soil_let != "CON")
+
+ps.bact.af_prop <- ps.bact.af_prop %>%
+  subset_samples(pds!="5")
+
+ps.bact.af_prop
+```
+##Rarefaction curves by soil type
+###A
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.A<- ps %>%
+  subset_samples(
+    soil_let == "A"
+    )
+
+timeseries.otu.A <- as(otu_table(ps.A), "matrix")
+Rarecurve.A <- rarecurve((timeseries.otu.A), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+Rarecurve.A
+```
+###B
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.B<- ps %>%
+  subset_samples(
+    soil_let == "B"
+    )
+
+timeseries.otu.B <- as(otu_table(ps.B), "matrix")
+Rarecurve.B <- rarecurve((timeseries.otu.B), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+```
+###C
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.C<- ps %>%
+  subset_samples(
+    soil_let == "C"
+    )
+
+timeseries.otu.C <- as(otu_table(ps.C), "matrix")
+Rarecurve.C <- rarecurve((timeseries.otu.C), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+```
+###D
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.D<- ps %>%
+  subset_samples(
+    soil_let == "D"
+    )
+
+timeseries.otu.D <- as(otu_table(ps.D), "matrix")
+Rarecurve.D <- rarecurve((timeseries.otu.D), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+```
+###E
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.E<- ps %>%
+  subset_samples(
+    soil_let == "E"
+    )
+
+timeseries.otu.E <- as(otu_table(ps.E), "matrix")
+Rarecurve.E <- rarecurve((timeseries.otu.E), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+```
+###F
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.F<- ps %>%
+  subset_samples(
+    soil_let == "F"
+    )
+
+timeseries.otu.F <- as(otu_table(ps.F), "matrix")
+Rarecurve.F <- rarecurve((timeseries.otu.F), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+```
+
+##Figure 1
+###What is the relative abundance of each phylum within the different samples?
+```{r}
+#wrangle data
+ps.bact_phylum <- ps.bact.af %>%
+  tax_glom(taxrank = "Phylum") %>%                     # agglomerate at phylum level
+  transform_sample_counts(function(x) {x/sum(x)} ) %>% # Transform to rel. abundance
+  psmelt() %>%                                         # Melt to long format
+  filter(Abundance > 0.02) %>%                         # Filter out low abundance taxa
+  arrange(Phylum)
+ps.bact_phylum
+```
+```{r}
+#abundance table
+sd_phylum <- ps.bact_phylum %>% group_by(soil_stress,microbe_type,pds,Phylum) %>% dplyr::summarise(mean(Abundance, na.rm = TRUE))
+sd_phylum
+```
+###What is the alpha diversity?
+```{r}
+#table of richness
+sg.richness <- estimate_richness(ps.bact.af, measures=c("Shannon"))
+sg.richness$Shannon
+sg.richness$ID <- row.names(sg.richness)
+View(sg.richness)
+timeseries.af.df <- as(sample_data(ps.bact.af), "data.frame")
+timeseries.af.df$ID <- row.names(timeseries.af.df)
+timeseries.df.richness <- merge(timeseries.af.df,sg.richness,by="ID")
+row.names(timeseries.df.richness)<-timeseries.df.richness$ID
+
+#abundance table
+sd_richness <- timeseries.df.richness %>% group_by(soil_stress,microbe_type,pds) %>% dplyr::summarise(mean(Shannon, na.rm = TRUE))
+sd_richness
+```
+```{r}
+#statistical analysis of shannon
+field.fit.shannon <- lm(estimate_richness(ps.bact.af)$Shannon ~ soil_stress*microbe_type*pds+tray, data=as(sample_data(ps.bact.af), "data.frame"))
+summary(aov(field.fit.shannon))
+TukeyHSD(aov(field.fit.shannon))
+```
+###Figure 1 - relative abundance + richness
+```{r}
+ps.bact_phylum_bar<-ggplot(ps.bact_phylum, aes(x = pds, y = Abundance, fill = Phylum)) + theme_bw() + facet_grid(microbe_type~soil_stress, labeller=labeller(microbe_type = microbe_labels)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering", "5"="Senescence", "6"="Final")) +
+  geom_bar(stat="identity", position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_brewer(palette="Spectral") +
+  theme(text = element_text(size=16)) +
+  ylab ("Relateve Abundance (Phyla > 2%)") +
+  xlab ("Plant Developmental Phase") +
+  theme(legend.position="bottom",
+        axis.text.x = element_text(angle=90, hjust=0.5, vjust=0.5)) +
+  guides(fill=guide_legend(legend.position="bottom", nrow=4))
+
+sg_richness_plot <- plot_richness(ps.bact.af, x="pds", measures=c("Shannon")) +  theme_bw() + 
+  facet_grid(microbe_type~soil_stress, labeller=labeller(microbe_type = microbe_labels)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering", "5"="Senescence", "6"="Final")) +
+  geom_boxplot() +
+  xlab ("Plant Developmental Phase") +
+  scale_color_viridis(discrete=TRUE, option="inferno") + 
+  theme(text = element_text(size=16), axis.text.x = element_text(angle=90, hjust=1, vjust=0.9), legend.title=element_blank())
+sg_richness_plot$layers <- sg_richness_plot$layers[-1]
+
+fig.1<-ggarrange(ps.bact_phylum_bar,sg_richness_plot, labels="auto", nrow=1)
+fig.1
+#ggsave("/Users/anigwe/Desktop/strep_figures/figure1.tiff", height=180, width=350, units='mm', dpi=200)
+```
+##Figure 2
+###What is the beta diversity? - bray
+```{r}
+#stats bray
+serpnon.timeseries.af_bray <- phyloseq::distance(ps.bact.af_prop, method="bray")
+#summary(strep.bray)
+sampledf.strep <- data.frame(sample_data(ps.bact.af_prop))
+adonis.serpnon.timeseries.af.bray <- adonis(serpnon.timeseries.af_bray ~ soil_stress*microbe_type*pds+tray, data = sampledf.strep)
+adonis.serpnon.timeseries.af.bray
+#betadisper
+beta.serpnon.timeseries.af.bray <- betadisper(serpnon.timeseries.af_bray, sampledf.strep$pds, type="centroid")
+permutest(beta.serpnon.timeseries.af.bray)
+boxplot(beta.serpnon.timeseries.af.bray)
+TukeyHSD(beta.serpnon.timeseries.af.bray)
+```
+###Figure 2 - Bray-Curtis Dissimilarity
+```{r}
+#ordination
+ord.pcoa.bray <- ordinate(ps.bact.af_prop, method="PCoA", distance="bray")
+#Figure 4
+bg.facet <-plot_ordination(ps.bact.af_prop, ord.pcoa.bray, color="pds") +
+  scale_color_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering", "5"="Senescence", "6"="Final")) +
+  #scale_color_manual(breaks=c("A","B","C","D","E","F"),
+                    # values=c("#E69F00","#56B4E9","#009E73","#F0E442","#0072B2","#D55E00"), labels=soil_let_labels) +
+  facet_grid(microbe_type~soil_stress, labeller=labeller(microbe_type = microbe_labels)) +
+  theme_bw() + theme(text = element_text(size=20)) +
+  geom_point(size=5)+
+  theme(legend.text = element_text(size = 20)) + 
+  guides(color=guide_legend(title="Plant Developmental Phase")) 
+  #labs(title="PCoA of Bray-Curtis Dissimilarity")
+#+ scale_color_viridis(option="inferno")
+bg.facet
+```
+##Figure 5
+###Are there differentially abundant microbes? - DESeq2?
+```{r}
+ps.bact.af_phyla<-tax_glom(ps.bact.af, "Phylum")
+ps.bact.af_family<-tax_glom(ps.bact.af, "Family")
+ps.bact.af_genus<-tax_glom(ps.bact.af, "Genus")
+ps.bact.af_asv<-ps.bact.af
+```
+###ASV
+```{r}
+library(DESeq2)
+set.seed(711)
+packageVersion("DESeq2")
+diagdds.field.asv = phyloseq_to_deseq2(ps.bact.af, ~soil_stress+microbe_type)
+diagdds.field.asv$soil_stress <- relevel(diagdds.field.asv$soil_stress, ref = "S")
+gm_mean.field.asv = function(x, na.rm=TRUE){ exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))}
+geoMeans.field.asv = apply(counts(diagdds.field.asv), 1, gm_mean.field.asv)
+diagdds.field.asv = estimateSizeFactors(diagdds.field.asv, geoMeans = geoMeans.field.asv)
+diagdds.field.asv = DESeq(diagdds.field.asv, betaPrior = FALSE, test="Wald", fitType="parametric")
+#If "Error in `rownames<-`(`*tmp*`, value = c("sp1", "sp0")) : length of 'dimnames' [1] not equal to array extent" appears, increase alpha to .90 to determine if there is a lack of differential OTUs at alpha = 0.01 or if there is a problem with the code.
+resultsNames(diagdds.field.asv)
+res.asv = results(diagdds.field.asv, cooksCutoff = FALSE)
+alpha = 0.01
+sigtab.asv = res.asv[which(res.asv$padj < alpha), ]
+sigtab.asv = cbind(as(sigtab.asv, "data.frame"), as(tax_table(ps.bact.af)[rownames(sigtab.asv), ], "matrix"))
+sigtab.asv = as.data.frame(sigtab.asv)
+sigtab.asv$ASV<-row.names(sigtab.asv)
+head(sigtab.asv)
+subset.field.asv <- subset_taxa(ps.bact.af, taxa_names(ps.bact.af)%in%rownames(sigtab.asv))
+subset.field.asv
+dat <- psmelt(subset.field.asv) # create data frame
+#export differential ASVs
+write.csv(dat, file="/Users/anigwe/Desktop/serp_timeseries_figures/DESeq2_soil_let_asv.csv")
+```
+####barplot
+```{r}
+#abundance table - genus
+str(dat)
+dat_asv <- dat %>% group_by(pds,soil_stress,microbe_type,Phylum,Genus,OTU) %>%
+  dplyr::summarise(
+  n=sum(!is.na(Abundance)),
+  sd(Abundance , na.rm = TRUE),
+  mean(Abundance , na.rm = TRUE),
+  min(Abundance , na.rm = TRUE),
+  max(Abundance , na.rm = TRUE),
+  var(Abundance , na.rm = TRUE),
+  se = sd(Abundance, na.rm=T)/sqrt(sum(!is.na(Abundance))))
+colnames(dat_asv)<-c("pds","soil_stress","microbe_type","Phylum","Genus","OTU","n","sd","mean","min","max","var","se")
+dat_asv
+
+dat_asv.plot<-ggplot(data=dat_asv, aes(x=pds, y=mean, fill=soil_stress)) + theme_bw() +
+  geom_bar(stat="identity", position="dodge") +
+geom_errorbar(aes(x=pds, ymin=mean-se, ymax=mean+se),position="dodge", colour="black") +
+  facet_grid(Genus~OTU~microbe_type, scales="free_y", labeller = labeller(microbe_type = microbe_labels)) +
+  scale_fill_brewer(palette="Spectral") +
+  theme(text = element_text(size=10), legend.position="bottom",
+        strip.text.y = element_text(face = "italic"),
+        axis.text.x = element_text(angle = 90)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering", "5"="Senescence", "6"="Final")) +
+  xlab("Plant Developmental Stage") +
+  ylab("Average Read Abundance") +
+  guides(fill=guide_legend(title="Soil Stress"))
+dat_asv.plot
+```
+####soil_stress_Nonserp_vs_Serp
+```{r}
+#http://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#exploring-and-exporting-results
+#looking at comparison between soil treatments using the name argument of the results function of DESEq2 to extract comparisons of interest
+resultsNames(diagdds.field.asv)
+dat.results.s_ns<-results(diagdds.field.asv,name="soil_stress_NS_vs_S",cooksCutoff = FALSE)
+alpha = 0.01
+sigtab.asv.s_ns = dat.results.s_ns[which(dat.results.s_ns$padj < alpha), ]
+sigtab.asv.s_ns = cbind(as(sigtab.asv.s_ns, "data.frame"), as(tax_table(ps.bact.af_asv)[rownames(sigtab.asv.s_ns), ], "matrix"))
+sigtab.asv.s_ns = as.data.frame(sigtab.asv.s_ns)
+sigtab.asv.s_ns$ASV<-row.names(sigtab.asv.s_ns)
+head(sigtab.asv.s_ns)
+#subset.field.asv.b_a <- subset_taxa(ps.bact.af_asv, taxa_names(ps.bact.af_asv)%in%rownames(sigtab.asv.b_a))
+#subset.field.asv.b_a
+#plot_bar(subset.field.asv.b_a)
+#dat.b_a <- psmelt(subset.field.asv.b_a) # create data frame
+#dat.b_a$LogAbund <- log10(dat.b_a$Abundance +1)
+#dat.field.asv.plant <- dat
+
+#For a particular asv, a log2 fold change of x for soil type F vs A means that soil type F correlates to a multiplicative change in the observed asv abundance of 2^x = y compared to soil type A.
+ggplot.s_ns.asv<-ggplot(sigtab.asv.s_ns, aes(x=ASV, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("soil_stress_Nonserp_vs_Serp")
+```
+####soil_stress_NS.Drought_vs_Serp
+```{r}
+#http://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#exploring-and-exporting-results
+#looking at comparison between soil treatments using the name argument of the results function of DESEq2 to extract comparisons of interest
+resultsNames(diagdds.field.asv)
+dat.results.s_nsd<-results(diagdds.field.asv,name="soil_stress_NS.Drought_vs_S",cooksCutoff = FALSE)
+alpha = 0.01
+sigtab.asv.s_nsd = dat.results.s_nsd[which(dat.results.s_nsd$padj < alpha), ]
+sigtab.asv.s_nsd = cbind(as(sigtab.asv.s_nsd, "data.frame"), as(tax_table(ps.bact.af_asv)[rownames(sigtab.asv.s_nsd), ], "matrix"))
+sigtab.asv.s_nsd = as.data.frame(sigtab.asv.s_nsd)
+head(sigtab.asv.s_nsd)
+#subset.field.asv.b_a <- subset_taxa(ps.bact.af_asv, taxa_names(ps.bact.af_asv)%in%rownames(sigtab.asv.b_a))
+#subset.field.asv.b_a
+#plot_bar(subset.field.asv.b_a)
+#dat.b_a <- psmelt(subset.field.asv.b_a) # create data frame
+#dat.b_a$LogAbund <- log10(dat.b_a$Abundance +1)
+#dat.field.asv.plant <- dat
+
+#For a particular asv, a log2 fold change of x for soil type F vs A means that soil type F correlates to a multiplicative change in the observed asv abundance of 2^x = y compared to soil type A.
+ggplot.s_nsd.asv<-ggplot(sigtab.asv.s_nsd, aes(x=asv, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("soil_stress_NS.Drought_vs_Serp")
+```
+```{r}
+#http://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#exploring-and-exporting-results
+#looking at comparison between soil treatments using the name argument of the results function of DESEq2 to extract comparisons of interest
+resultsNames(diagdds.field.asv)
+dat.results.sm_nsm<-results(diagdds.field.asv,name="microbe_type_serpentine_vs_nonserpentine",cooksCutoff = FALSE)
+alpha = 0.01
+#no differences at alpha = 0.01
+sigtab.asv.sm_nsm = dat.results.sm_nsm[which(dat.results.sm_nsm$padj < alpha), ]
+sigtab.asv.sm_nsm = cbind(as(sigtab.asv.sm_nsm, "data.frame"), as(tax_table(ps.bact.af_asv)[rownames(sigtab.asv.sm_nsm), ], "matrix"))
+sigtab.asv.sm_nsm = as.data.frame(sigtab.asv.sm_nsm)
+head(sigtab.asv.sm_nsm)
+#subset.field.asv.b_a <- subset_taxa(ps.bact.af_asv, taxa_names(ps.bact.af_asv)%in%rownames(sigtab.asv.b_a))
+#subset.field.asv.b_a
+#plot_bar(subset.field.asv.b_a)
+#dat.b_a <- psmelt(subset.field.asv.b_a) # create data frame
+#dat.b_a$LogAbund <- log10(dat.b_a$Abundance +1)
+#dat.field.asv.plant <- dat
+
+#For a particular asv, a log2 fold change of x for soil type F vs A means that soil type F correlates to a multiplicative change in the observed asv abundance of 2^x = y compared to soil type A.
+ggplot.sm_nsm<-ggplot(sigtab.asv.sm_nsm, aes(x=asv, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("microbe_type_serpentine_vs_nonserpentine")
+```
+```{r}
+#For a particular asv, a log2 fold change of x for soil type F vs A means that soil type F correlates to a multiplicative change in the observed asv abundance of 2^x = y compared to soil type A.
+ggplot.s_ns.asv<-ggplot(sigtab.asv.s_ns, aes(x=asv, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("soil_stress_Nonserp_vs_Serp")
+
+#For a particular asv, a log2 fold change of x for soil type F vs A means that soil type F correlates to a multiplicative change in the observed asv abundance of 2^x = y compared to soil type A.
+ggplot.s_nsd.asv<-ggplot(sigtab.asv.s_nsd, aes(x=asv, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("soil_stress_NS.Drought_vs_Serp")
+
+#For a particular asv, a log2 fold change of x for soil type F vs A means that soil type F correlates to a multiplicative change in the observed asv abundance of 2^x = y compared to soil type A.
+ggplot.s_nsni.asv<-ggplot(sigtab.asv.s_nsni, aes(x=asv, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("soil_stress_NS.Ni_vs_Serp")
+```
+```{r}
+sigtab.asv.nonserp <- sigtab.asv.s_ns
+sigtab.asv.nonserp.drought <- sigtab.asv.s_nsd
+sigtab.asv.nonserp.nickel <- sigtab.asv.s_nsni
+sigtab.asv.nonserp$soil_stress="NS"
+sigtab.asv.nonserp.drought$soil_stress="NS+Drought"
+sigtab.asv.nonserp.nickel$soil_stress="NS+Ni"
+sigtab.asv.soil_stress <- rbind(sigtab.asv.nonserp,sigtab.asv.nonserp.drought,sigtab.asv.nonserp.nickel)
+sigtab.asv.soil_stress$ASV<-row.names(sigtab.asv.soil_stress)
+
+sigtab.asv.soil_stress<-subset(sigtab.asv.soil_stress, log2FoldChange>=10|log2FoldChange<=-10)
+
+
+ggplot.soil_stress.asv<-ggplot(sigtab.asv.soil_stress, aes(x=ASV, y=log2FoldChange, color=soil_stress)) + 
+  geom_point(size=3) + 
+  facet_wrap(Phylum~Genus, scales="free_x") +
+  geom_hline(yintercept = 0) +
+  theme_bw() +
+#  scale_color_manual(breaks=c("B","C","D","E","F"),
+#                     values=c("#56B4E9","#009E73","#F0E442","#0072B2","#D55E00"), labels=soil_let_labels_bcdef) +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5),
+        legend.position="bottom") + 
+  guides(color=guide_legend(title="Soil Type")) +
+  ggtitle("Differential Abundance by asv")
+ggplot.soil_stress.asv
+```
+####soil_stress_NS.Ni_vs_Serp
+```{r}
+#http://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#exploring-and-exporting-results
+#looking at comparison between soil treatments using the name argument of the results function of DESEq2 to extract comparisons of interest
+resultsNames(diagdds.field.asv)
+dat.results.s_nsni<-results(diagdds.field.asv,name="soil_stress_NS.Ni_vs_S",cooksCutoff = FALSE)
+alpha = 0.01
+sigtab.asv.s_nsni = dat.results.s_nsni[which(dat.results.s_nsni$padj < alpha), ]
+sigtab.asv.s_nsni = cbind(as(sigtab.asv.s_nsni, "data.frame"), as(tax_table(ps.bact.af_asv)[rownames(sigtab.asv.s_nsni), ], "matrix"))
+sigtab.asv.s_nsni = as.data.frame(sigtab.asv.s_nsni)
+head(sigtab.asv.s_nsni)
+#subset.field.asv.b_a <- subset_taxa(ps.bact.af_asv, taxa_names(ps.bact.af_asv)%in%rownames(sigtab.asv.b_a))
+#subset.field.asv.b_a
+#plot_bar(subset.field.asv.b_a)
+#dat.b_a <- psmelt(subset.field.asv.b_a) # create data frame
+#dat.b_a$LogAbund <- log10(dat.b_a$Abundance +1)
+#dat.field.asv.plant <- dat
+
+#For a particular asv, a log2 fold change of x for soil type F vs A means that soil type F correlates to a multiplicative change in the observed asv abundance of 2^x = y compared to soil type A.
+ggplot.s_nsni.asv<-ggplot(sigtab.asv.s_nsni, aes(x=asv, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("soil_stress_NS.Drought_vs_Serp")
+```
+```{r}
+#http://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#exploring-and-exporting-results
+#looking at comparison between soil treatments using the name argument of the results function of DESEq2 to extract comparisons of interest
+resultsNames(diagdds.field.asv)
+dat.results.sm_nsm<-results(diagdds.field.asv,name="microbe_type_serpentine_vs_nonserpentine",cooksCutoff = FALSE)
+alpha = 0.01
+#no differences at alpha = 0.01
+sigtab.asv.sm_nsm = dat.results.sm_nsm[which(dat.results.sm_nsm$padj < alpha), ]
+sigtab.asv.sm_nsm = cbind(as(sigtab.asv.sm_nsm, "data.frame"), as(tax_table(ps.bact.af_asv)[rownames(sigtab.asv.sm_nsm), ], "matrix"))
+sigtab.asv.sm_nsm = as.data.frame(sigtab.asv.sm_nsm)
+head(sigtab.asv.sm_nsm)
+#subset.field.asv.b_a <- subset_taxa(ps.bact.af_asv, taxa_names(ps.bact.af_asv)%in%rownames(sigtab.asv.b_a))
+#subset.field.asv.b_a
+#plot_bar(subset.field.asv.b_a)
+#dat.b_a <- psmelt(subset.field.asv.b_a) # create data frame
+#dat.b_a$LogAbund <- log10(dat.b_a$Abundance +1)
+#dat.field.asv.plant <- dat
+
+#For a particular asv, a log2 fold change of x for soil type F vs A means that soil type F correlates to a multiplicative change in the observed asv abundance of 2^x = y compared to soil type A.
+ggplot.sm_nsm<-ggplot(sigtab.asv.sm_nsm, aes(x=asv, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("microbe_type_serpentine_vs_nonserpentine")
+```
+```{r}
+#For a particular asv, a log2 fold change of x for soil type F vs A means that soil type F correlates to a multiplicative change in the observed asv abundance of 2^x = y compared to soil type A.
+ggplot.s_ns.asv<-ggplot(sigtab.asv.s_ns, aes(x=asv, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("soil_stress_Nonserp_vs_Serp")
+
+#For a particular asv, a log2 fold change of x for soil type F vs A means that soil type F correlates to a multiplicative change in the observed asv abundance of 2^x = y compared to soil type A.
+ggplot.s_nsni.asv<-ggplot(sigtab.asv.s_nsni, aes(x=asv, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("soil_stress_NS.Drought_vs_Serp")
+
+#For a particular asv, a log2 fold change of x for soil type F vs A means that soil type F correlates to a multiplicative change in the observed asv abundance of 2^x = y compared to soil type A.
+ggplot.s_nsni.asv<-ggplot(sigtab.asv.s_nsni, aes(x=asv, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) + ggtitle("soil_stress_NS.Ni_vs_Serp")
+```
+```{r}
+sigtab.asv.nonserp <- sigtab.asv.s_ns
+sigtab.asv.nonserp.drought <- sigtab.asv.s_nsni
+sigtab.asv.nonserp.nickel <- sigtab.asv.s_nsni
+sigtab.asv.nonserp$soil_stress="NS"
+sigtab.asv.nonserp.drought$soil_stress="NS+Drought"
+sigtab.asv.nonserp.nickel$soil_stress="NS+Ni"
+sigtab.asv.soil_stress <- rbind(sigtab.asv.nonserp,sigtab.asv.nonserp.drought,sigtab.asv.nonserp.nickel)
+sigtab.asv.soil_stress$ASV<-row.names(sigtab.asv.soil_stress)
+
+sigtab.asv.soil_stress<-subset(sigtab.asv.soil_stress, log2FoldChange>=10|log2FoldChange<=-10)
+
+
+ggplot.soil_stress.asv<-ggplot(sigtab.asv.soil_stress, aes(x=ASV, y=log2FoldChange, color=soil_stress)) + 
+  geom_point(size=3) + 
+  facet_wrap(Phylum~Genus, scales="free_x") +
+  geom_hline(yintercept = 0) +
+  theme_bw() +
+#  scale_color_manual(breaks=c("B","C","D","E","F"),
+#                     values=c("#56B4E9","#009E73","#F0E442","#0072B2","#D55E00"), labels=soil_let_labels_bcdef) +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5),
+        legend.position="bottom") + 
+  guides(color=guide_legend(title="Soil Type")) +
+  ggtitle("Differential Abundance by asv")
+ggplot.soil_stress.asv
+```
+#### Figure 5 - DESeq2 ASV
+```{r}
+ggplot.soil_stress.asv<-ggplot(sigtab.asv.soil_stress, aes(x=ASV, y=log2FoldChange, color=soil_stress)) + 
+  geom_point(size=3) + 
+  facet_wrap(Phylum~Genus, ncol=5, scales="free_x") +
+  geom_hline(yintercept = 0) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5),
+        legend.position="bottom") + 
+  scale_color_discrete(name="Soil Type",
+                         breaks=c("NS", "NS+Drought", "NS+Ni"),
+                         labels=c("NS+NSm", "NS+Sm+D", "NS+Sm+Ni")) +
+  guides(color=guide_legend(title="Soil Type")) +
+  ggtitle("Differential Abundance by ASV")
+ggplot.soil_stress.asv
+```
+#Plant Growth Metrics
+##Input data
+```{r}
+metadata.root <- read.csv("~/Desktop/R/serpnon_timeseries/input/pds_combined_root_forR.csv")
+```
+```{r}
+metadata.root$height <- as.numeric(as.character(metadata.root$height))
+metadata.root$leaf.num <- as.numeric(as.character(metadata.root$leaf.num))
+metadata.root$date<- as.Date(metadata.root$date, "%m/%d/%Y")
+year(metadata.root$date)<-2018
+metadata.root$sample_num <- as.factor(metadata.root$sample_num)
+metadata.root$tray <- as.factor(metadata.root$tray)
+metadata.root$winrhizo_date<-as.Date(metadata.root$winrhizo_date, "%m/%d/%Y")
+metadata.root$height<-as.numeric(metadata.root$height)
+metadata.root$root_length<-as.numeric(as.character(metadata.root$root_length))
+metadata.root$proj_area<-as.numeric(metadata.root$proj_area)
+metadata.root$root_surfacearea<-as.numeric(as.character(metadata.root$root_surfacearea))
+metadata.root$root_diameter<-as.numeric(as.character(metadata.root$root_diameter))
+metadata.root$root_length_per_volume<-as.numeric(metadata.root$root_length_per_volume)
+metadata.root$root_volume<-as.numeric(as.character(metadata.root$root_volume))
+metadata.root$wet.biomass.above<-as.numeric(metadata.root$wet.biomass.above)
+metadata.root$dry.biomass.above<-as.numeric(as.character(metadata.root$dry.biomass.above))
+metadata.root$moisture.above<-as.numeric(metadata.root$moisture.above)
+metadata.root<-subset(metadata.root,pds!="."&pds!="5"&pds!="6")
+metadata.root<-subset(metadata.root, pds!="0")
+metadata.root<-subset(metadata.root, soil_let!="CON")
+```
+##Figure 3
+###height summary
+```{r}
+height_timeseries <- metadata.root %>% dplyr::group_by(soil_stress,pds,microbe_type) %>% dplyr::summarise(
+  n=sum(!is.na(height)),
+  sd(height , na.rm = TRUE),
+  mean(height , na.rm = TRUE),
+  min(height , na.rm = TRUE),
+  max(height , na.rm = TRUE),
+  var(height , na.rm = TRUE),
+  se = sd(height, na.rm=T)/sqrt(sum(!is.na(height))))
+colnames(height_timeseries)<-c("soil_stress","pds","microbe_type","n","sd","mean","min","max","var","se")
+height_timeseries.df <- as.data.frame(height_timeseries)
+print(height_timeseries)
+sum(!is.na(metadata.root$height))
+```
+###height statistics
+```{r}
+lbs.lm.height <- lm(height~soil_stress*microbe_type*pds, data=metadata.root, na.action = na.exclude)
+lbs.lm.height
+summary(lbs.lm.height)
+print(lbs.lm.height, correlation=TRUE)
+vcov(lbs.lm.height)
+
+aov.lbs.lm.height <- aov(lbs.lm.height)
+aov.lbs.lm.height
+summary(aov.lbs.lm.height)
+TukeyHSD(aov.lbs.lm.height)
+```
+###leaf number summary
+```{r}
+leaf.num_timeseries <- metadata.root %>% dplyr::group_by(soil_stress,pds,microbe_type) %>% dplyr::summarise(
+  n=sum(!is.na(leaf.num)),
+  sd(leaf.num , na.rm = TRUE),
+  mean(leaf.num , na.rm = TRUE),
+  min(leaf.num , na.rm = TRUE),
+  max(leaf.num , na.rm = TRUE),
+  var(leaf.num , na.rm = TRUE),
+  se = sd(leaf.num, na.rm=T)/sqrt(sum(!is.na(leaf.num))))
+colnames(leaf.num_timeseries)<-c("soil_stress","pds","microbe_type","n","sd","mean","min","max","var","se")
+leaf.num_timeseries.df <- as.data.frame(leaf.num_timeseries)
+print(leaf.num_timeseries)
+sum(!is.na(metadata.root$leaf.num))
+```
+###leaf number statistics
+```{r}
+lbs.lm.leaf.num <- lm(leaf.num~soil_stress*microbe_type*pds, data=metadata.root, na.action = na.exclude)
+lbs.lm.leaf.num
+summary(lbs.lm.leaf.num)
+print(lbs.lm.leaf.num, correlation=TRUE)
+vcov(lbs.lm.leaf.num)
+
+aov.lbs.lm.leaf.num <- aov(lbs.lm.leaf.num)
+aov.lbs.lm.leaf.num
+summary(aov.lbs.lm.leaf.num)
+TukeyHSD(aov.lbs.lm.leaf.num)
+```
+###dry biomass summary
+```{r}
+dry.biomass.above_timeseries <- metadata.root %>% dplyr::group_by(soil_stress,pds,microbe_type) %>% dplyr::summarise(
+  n=sum(!is.na(dry.biomass.above)),
+  sd(dry.biomass.above , na.rm = TRUE),
+  mean(dry.biomass.above , na.rm = TRUE),
+  min(dry.biomass.above , na.rm = TRUE),
+  max(dry.biomass.above , na.rm = TRUE),
+  var(dry.biomass.above , na.rm = TRUE),
+  se = sd(dry.biomass.above, na.rm=T)/sqrt(sum(!is.na(dry.biomass.above))))
+colnames(dry.biomass.above_timeseries)<-c("soil_stress","pds","microbe_type","n","sd","mean","min","max","var","se")
+dry.biomass.above_timeseries.df <- as.data.frame(dry.biomass.above_timeseries)
+print(dry.biomass.above_timeseries)
+sum(!is.na(dry.biomass.above_timeseries$n))
+sum((dry.biomass.above_timeseries$n))
+```
+###dry biomass statistics
+```{r}
+lbs.lm.dry.biomass.above <- lm(dry.biomass.above~soil_stress*microbe_type*pds, data=metadata.root, na.action = na.exclude)
+lbs.lm.dry.biomass.above
+summary(lbs.lm.dry.biomass.above)
+print(lbs.lm.dry.biomass.above, correlation=TRUE)
+vcov(lbs.lm.dry.biomass.above)
+
+aov.lbs.lm.dry.biomass.above <- aov(lbs.lm.dry.biomass.above)
+aov.lbs.lm.dry.biomass.above
+summary(aov.lbs.lm.dry.biomass.above)
+TukeyHSD(aov.lbs.lm.dry.biomass.above)
+```
+###Figure 3 - Height + Leaf + Biomass
+```{r}
+#height - a
+height.plot<-ggplot(data=height_timeseries, aes(x=pds, y=mean, group=soil_stress, colour=soil_stress)) + theme_bw() +
+  facet_grid(~microbe_type, labeller = labeller(microbe_type = microbe_labels)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering", "5"="Senescence", "6"="Final")) +
+    stat_summary(fun=mean, geom="line", position=position_dodge(0.2)) +
+    stat_summary(fun=mean, geom="point", position=position_dodge(0.2)) +
+    geom_errorbar(aes(x=pds, ymin=mean-sd, ymax=mean+sd), position=position_dodge(0.2)) +
+  ggtitle("Height") +
+  xlab("Plant Developmental Phase") +
+  ylab("Height(cm)") +
+  theme(text = element_text(size=16), axis.text.x = element_text(angle=90, hjust=1, vjust=0.9)) +
+  guides(colour=guide_legend(title="Soil Type"))
+height.plot
+```
+```{r}
+#leaf number - b
+ln.box <- ggplot(leaf.num_timeseries, aes(x=pds, y=mean, group=soil_stress, colour=soil_stress)) + theme_bw() +
+  facet_grid(~microbe_type, labeller = labeller(microbe_type = microbe_labels)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering", "5"="Senescence", "6"="Final")) +
+    stat_summary(fun=mean, geom="line", position=position_dodge(0.2)) +
+    stat_summary(fun=mean, geom="point", position=position_dodge(0.2)) +
+    geom_errorbar(aes(x=pds, ymin=mean-sd, ymax=mean+sd), position=position_dodge(0.2)) +
+  ggtitle("Leaf Number") +
+  xlab("Plant Developmental Phase") +
+  ylab("Number") +
+  theme(text = element_text(size=16), axis.text.x = element_text(angle=90, hjust=1, vjust=0.9)) +
+  guides(colour=guide_legend(title="Soil Type"))
+ln.box
+```
+```{r}
+dry.biomass.above.plot<-ggplot(data=dry.biomass.above_timeseries, aes(x=pds, y=mean, group=soil_stress, colour=soil_stress)) + theme_bw() +
+  facet_grid(~microbe_type, labeller = labeller(microbe_type = microbe_labels)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering", "5"="Senescence", "6"="Final")) +
+    stat_summary(fun=mean, geom="line", position=position_dodge(0.2)) +
+    stat_summary(fun=mean, geom="point", position=position_dodge(0.2)) +
+  geom_errorbar(aes(x=pds, ymin=mean-sd, ymax=mean+sd), position=position_dodge(0.2)) +
+  ggtitle("Dry Biomass") +
+  xlab("Plant Developmental Phase") +
+  ylab("Weight (g)") +
+  theme(text = element_text(size=16), axis.text.x = element_text(angle=90, hjust=1, vjust=0.9)) +
+  guides(colour=guide_legend(title="Soil Type"))
+dry.biomass.above.plot
+```
+```{r}
+fig.3<-ggarrange(height.plot,ln.box,dry.biomass.above.plot,labels="auto",ncol=3,common.legend=TRUE,legend="bottom")
+fig.3
+```
+##Figure 4
+###root length summary
+```{r}
+length_timeseries <- metadata.root %>% dplyr::group_by(soil_stress,pds,microbe_type) %>% dplyr::summarise(
+  n=sum(!is.na(root_length)),
+  sd(root_length , na.rm = TRUE),
+  mean(root_length , na.rm = TRUE),
+  min(root_length , na.rm = TRUE),
+  max(root_length , na.rm = TRUE),
+  var(root_length , na.rm = TRUE),
+  se = sd(root_length, na.rm=T)/sqrt(sum(!is.na(root_length))))
+colnames(length_timeseries)<-c("soil_stress","pds","microbe_type","n","sd","mean","min","max","var","se")
+length_timeseries.df <- as.data.frame(length_timeseries)
+print(length_timeseries)
+sum(!is.na(metadata.root$root_length))
+sum((length_timeseries$n))
+```
+###root length statistics
+```{r}
+lbs.lm.root_length <- lm(root_length~soil_stress*microbe_type*pds, data=metadata.root, na.action = na.exclude)
+lbs.lm.root_length
+summary(lbs.lm.root_length)
+print(lbs.lm.root_length, correlation=TRUE)
+vcov(lbs.lm.root_length)
+
+aov.lbs.lm.root_length <- aov(lbs.lm.root_length)
+aov.lbs.lm.root_length
+summary(aov.lbs.lm.root_length)
+TukeyHSD(aov.lbs.lm.root_length)
+```
+###root diameter summary
+```{r}
+diameter_timeseries <- metadata.root %>% dplyr::group_by(soil_stress,pds,microbe_type) %>% dplyr::summarise(
+  n=sum(!is.na(root_diameter)),
+  sd(root_diameter , na.rm = TRUE),
+  mean(root_diameter , na.rm = TRUE),
+  min(root_diameter , na.rm = TRUE),
+  max(root_diameter , na.rm = TRUE),
+  var(root_diameter , na.rm = TRUE),
+  se = sd(root_diameter, na.rm=T)/sqrt(sum(!is.na(root_diameter))))
+colnames(diameter_timeseries)<-c("soil_stress","pds","microbe_type","n","sd","mean","min","max","var","se")
+diameter_timeseries.df <- as.data.frame(diameter_timeseries)
+print(diameter_timeseries)
+sum((diameter_timeseries$n))
+```
+###root diameter statistics
+```{r}
+lbs.lm.root_diameter <- lm(root_diameter~soil_stress*microbe_type*pds, data=metadata.root, na.action = na.exclude)
+lbs.lm.root_diameter
+summary(lbs.lm.root_diameter)
+print(lbs.lm.root_diameter, correlation=TRUE)
+
+aov.lbs.lm.root_diameter <- aov(lbs.lm.root_diameter)
+aov.lbs.lm.root_diameter
+summary(aov.lbs.lm.root_diameter)
+TukeyHSD(aov.lbs.lm.root_diameter)
+```
+###surface area summary
+```{r}
+metadata.root.4<-subset(metadata.root, pds==4)
+surfacearea_timeseries <- metadata.root %>% dplyr::group_by(soil_stress,pds,microbe_type) %>% dplyr::summarise(
+  n=sum(!is.na(root_surfacearea)),
+  sd(root_surfacearea , na.rm = TRUE),
+  mean(root_surfacearea , na.rm = TRUE),
+  min(root_surfacearea , na.rm = TRUE),
+  max(root_surfacearea , na.rm = TRUE),
+  var(root_surfacearea , na.rm = TRUE),
+  se = sd(root_surfacearea, na.rm=T)/sqrt(sum(!is.na(root_surfacearea))))
+colnames(surfacearea_timeseries)<-c("soil_stress","pds","microbe_type","n","sd","mean","min","max","var","se")
+surfacearea_timeseries.df <- as.data.frame(surfacearea_timeseries)
+print(surfacearea_timeseries)
+sum((surfacearea_timeseries$n))
+```
+###surface area statistics
+```{r}
+lbs.lm.surfacearea <- lm(root_surfacearea~soil_stress*microbe_type*pds, data=metadata.root, na.action = na.exclude)
+lbs.lm.surfacearea
+summary(lbs.lm.surfacearea)
+print(lbs.lm.surfacearea, correlation=TRUE)
+
+aov.lbs.lm.surfacearea <- aov(lbs.lm.surfacearea)
+aov.lbs.lm.surfacearea
+summary(aov.lbs.lm.surfacearea)
+TukeyHSD(aov.lbs.lm.surfacearea)
+```
+###root volume summary
+```{r}
+volume_timeseries <- metadata.root %>% dplyr::group_by(soil_stress,pds,microbe_type) %>% dplyr::summarise(
+  n=sum(!is.na(root_volume)),
+  sd(root_volume , na.rm = TRUE),
+  mean(root_volume , na.rm = TRUE),
+  min(root_volume , na.rm = TRUE),
+  max(root_volume , na.rm = TRUE),
+  var(root_volume , na.rm = TRUE),
+  se = sd(root_volume, na.rm=T)/sqrt(sum(!is.na(root_volume))))
+colnames(volume_timeseries)<-c("soil_stress","pds","microbe_type","n","sd","mean","min","max","var","se")
+volume_timeseries.df <- as.data.frame(volume_timeseries)
+print(volume_timeseries)
+sum(!is.na(volume_timeseries$n))
+```
+###root volume statistics
+```{r}
+lbs.lm.volume <- lm(root_volume~soil_stress*microbe_type*pds, data=metadata.root, na.action = na.exclude)
+lbs.lm.volume
+summary(lbs.lm.volume)
+print(lbs.lm.volume, correlation=TRUE)
+
+aov.lbs.lm.volume <- aov(lbs.lm.volume)
+aov.lbs.lm.volume
+summary(aov.lbs.lm.volume)
+TukeyHSD(aov.lbs.lm.volume)
+```
+
+###Figure 4 - Length + Diameter + Surface Area + Volume
+```{r}
+root.box.length<-ggplot(data=length_timeseries, aes(x=pds, y=mean, group=soil_stress, colour=soil_stress)) + theme_bw() +
+  facet_grid(~microbe_type, labeller = labeller(microbe_type = microbe_labels)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering", "5"="Senescence", "6"="Final")) +
+    stat_summary(fun=mean, geom="line", position=position_dodge(0.2)) +
+    stat_summary(fun=mean, geom="point", position=position_dodge(0.2)) +
+    geom_errorbar(aes(x=pds, ymin=mean-sd, ymax=mean+sd), position=position_dodge(0.2)) +
+  ggtitle("Root Length") +
+  xlab("Plant Developmental Phase") +
+  ylab("Length (cm)") +
+  theme(axis.title.x = element_blank()) +
+  theme(text = element_text(size=16), axis.text.x = element_text(angle=90, hjust=1, vjust=0.9)) +
+  guides(colour=guide_legend(title="Soil Type"))
+root.box.length
+```
+```{r}
+root.box.diameter<-ggplot(data=diameter_timeseries, aes(x=pds, y=mean, group=soil_stress, colour=soil_stress)) + theme_bw() +
+  facet_grid(~microbe_type, labeller = labeller(microbe_type = microbe_labels)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering", "5"="Senescence", "6"="Final")) +
+    stat_summary(fun=mean, geom="line", position=position_dodge(0.2)) +
+    stat_summary(fun=mean, geom="point", position=position_dodge(0.2)) +
+    geom_errorbar(aes(x=pds, ymin=mean-sd, ymax=mean+sd), position=position_dodge(0.2)) +
+  ggtitle("Root Diameter") +
+  xlab("Plant Developmental Phase") +
+  ylab("Diameter (cm)") +
+  theme(axis.title.x = element_blank()) +
+  theme(text = element_text(size=16), axis.text.x = element_text(angle=90, hjust=1, vjust=0.9)) +
+  guides(colour=guide_legend(title="Soil Type"))
+root.box.diameter
+```
+```{r}
+root.box.surfacearea<-ggplot(data=surfacearea_timeseries, aes(x=pds, y=mean, group=soil_stress, colour=soil_stress)) + theme_bw() +
+  facet_grid(~microbe_type, labeller = labeller(microbe_type = microbe_labels)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering", "5"="Senescence", "6"="Final")) +
+    stat_summary(fun=mean, geom="line", position=position_dodge(0.2)) +
+    stat_summary(fun=mean, geom="point", position=position_dodge(0.2)) +
+    geom_errorbar(aes(x=pds, ymin=mean-sd, ymax=mean+sd), position=position_dodge(0.2)) +
+  ggtitle("Root Surface Area") +
+  xlab("Plant Developmental Phase") +
+  ylab("Surface Area (cm2)") +
+  theme(text = element_text(size=16), axis.text.x = element_text(angle=90, hjust=1, vjust=0.9)) +
+  guides(colour=guide_legend(title="Soil Type"))
+root.box.surfacearea
+```
+```{r}
+root.box.volume<-ggplot(data=volume_timeseries, aes(x=pds, y=mean, group=soil_stress, colour=soil_stress)) + theme_bw() +
+  facet_grid(~microbe_type, labeller = labeller(microbe_type = microbe_labels)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering", "5"="Senescence", "6"="Final")) +
+    stat_summary(fun=mean, geom="line", position=position_dodge(0.2)) +
+    stat_summary(fun=mean, geom="point", position=position_dodge(0.2)) +
+    geom_errorbar(aes(x=pds, ymin=mean-sd, ymax=mean+sd), position=position_dodge(0.2)) +
+  ggtitle("Root Volume") +
+  xlab("Plant Developmental Phase") +
+  ylab("Volume (cm3)") +
+  theme(text = element_text(size=16), axis.text.x = element_text(angle=90, hjust=1, vjust=0.9)) +
+  guides(colour=guide_legend(title="Soil Type"))
+root.box.volume
+```
+```{r}
+fig.4<-ggarrange(root.box.length,root.box.diameter,root.box.surfacearea,root.box.volume,common.legend=TRUE,labels="auto",legend="bottom",ncol=2,nrow=2)
+fig.4
+```
+#Survival Analysis - Table 1
+```{r references}
+#http://www.sthda.com/english/wiki/identifying-and-removing-duplicate-data-in-r
+#https://www.datacamp.com/community/tutorials/survival-analysis-R
+#https://github.com/kassambara/survminer/issues/67
+#http://sphweb.bumc.bu.edu/otlt/MPH-Modules/BS/R/R7_LogisticRegression-Survival/R7_LogisticRegression-Survival4.html
+#https://rpubs.com/daspringate/survival
+#http://rpubs.com/sinhrks/plot_surv
+#https://stats.idre.ucla.edu/r/faq/how-can-i-identify-the-first-and-last-observations-within-a-group-in-r/
+#https://bioconnector.org/r-survival.html
+#https://stackoverflow.com/questions/19944334/extract-rows-for-the-first-occurrence-of-a-variable-in-a-data-frame
+#http://www.sthda.com/english/rpkgs/survminer/survminer_cheatsheet.pdf
+#import data, change "Date" format
+```
+##Input data
+```{r}
+#time series analysis with pds_combined
+#import combined timeseries data and change object structures. each row is a sample and columns include information concerning plant developmental stage and date.
+timeseries <- read.csv("~/Desktop/R/serpnon_timeseries/input/timeseries_combined_survival.csv", na.strings=c(".", " ", "", "NA"))
+str(timeseries)
+timeseries<-subset(timeseries, soil_let!="CON" & pds!="0")
+timeseries$sample_num <- as.factor(timeseries$sample_num)
+timeseries$dna_id <- as.factor(timeseries$dna_id)
+timeseries$date.dna = as.Date(timeseries$date.dna, "%m/%d/%Y")
+timeseries$date.8.22.2018 = as.Date(timeseries$date.8.22.2018, "%m/%d/%Y")
+timeseries$date.8.29.2018 = as.Date(timeseries$date.8.29.2018, "%m/%d/%Y")
+timeseries$date.9.3.2018 = as.Date(timeseries$date.9.3.2018, "%m/%d/%Y")
+timeseries$date.9.10.2018 = as.Date(timeseries$date.9.10.2018, "%m/%d/%Y")
+timeseries$date.9.17.2018 = as.Date(timeseries$date.9.17.2018, "%m/%d/%Y")
+timeseries$date.9.24.2018 = as.Date(timeseries$date.9.24.2018, "%m/%d/%Y")
+timeseries$date.10.1.2018 = as.Date(timeseries$date.10.1.2018, "%m/%d/%Y")
+timeseries$date.10.8.2018 = as.Date(timeseries$date.10.8.2018, "%m/%d/%Y")
+timeseries$date.10.15.2018 = as.Date(timeseries$date.10.15.2018, "%m/%d/%Y")
+timeseries$date.10.22.2018 = as.Date(timeseries$date.10.22.2018, "%m/%d/%Y")
+timeseries$date.11.12.2018 = as.Date(timeseries$date.11.12.2018, "%m/%d/%Y")
+timeseries$date.11.19.2018 = as.Date(timeseries$date.11.19.2018, "%m/%d/%Y")
+timeseries$date.11.26.2018 = as.Date(timeseries$date.11.26.2018, "%m/%d/%Y")
+```
+##Survival analysis - Bolting
+```{r}
+#subset instances of seedlings for each column date (pds.[date]=="1")
+timeseries2<-subset(timeseries,pds!="1"&pds!="6")
+serp_pds1 <- subset(timeseries2, pds.8.22.2018=="1")
+#if number of observations is different, check to see which samples are missing
+rownames(serp_pds1) <- serp_pds1$sample_num
+rownames(timeseries2) <- timeseries2$sample_num
+q.bolt <- !rownames(timeseries2) %in% serp_pds1$sample_num
+q.bolt
+qf.list.bolt<-as.data.frame(timeseries2 [q.bolt, ])
+
+#subset instances of flowering for each column date (pds.[date]=="2")
+serp_pds.8.29.2018_2 <- subset(timeseries2, pds.8.29.2018=="2")
+serp_pds.9.3.2018_2 <- subset(timeseries2, pds.9.3.2018=="2")
+serp_pds.9.10.2018_2 <- subset(timeseries2, pds.9.10.2018=="2")
+serp_pds.9.17.2018_2 <- subset(timeseries2, pds.9.17.2018=="2")
+serp_pds.9.24.2018_2 <- subset(timeseries2, pds.9.24.2018=="2")
+serp_pds.10.1.2018_2 <- subset(timeseries2, pds.10.1.2018=="2")
+serp_pds.10.8.2018_2 <- subset(timeseries2, pds.10.8.2018=="2")
+serp_pds.10.15.2018_2 <- subset(timeseries2, pds.10.15.2018=="2")
+serp_pds.10.22.2018_2 <- subset(timeseries2, pds.10.22.2018=="2")
+serp_pds.11.12.2018_2 <- subset(timeseries2, pds.11.12.2018=="2")
+serp_pds.11.19.2018_2 <- subset(timeseries2, pds.11.19.2018=="2")
+serp_pds.11.26.2018_2 <- subset(timeseries2, pds.11.26.2018=="2")
+#combine pds1 and pds4 data frames for each date that has observations
+serp_8.29.2018_pds12 <- rbind(serp_pds1, serp_pds.8.29.2018_2)
+serp_9.3.2018_pds12 <- rbind(serp_pds1, serp_pds.9.3.2018_2)
+serp_9.10.2018_pds12 <- rbind(serp_pds1, serp_pds.9.10.2018_2)
+serp_9.17.2018_pds12 <- rbind(serp_pds1, serp_pds.9.17.2018_2)
+serp_9.24.2018_pds12 <- rbind(serp_pds1, serp_pds.9.24.2018_2)
+serp_10.1.2018_pds12 <- rbind(serp_pds1, serp_pds.10.1.2018_2)
+serp_10.8.2018_pds12 <- rbind(serp_pds1, serp_pds.10.8.2018_2)
+serp_10.15.2018_pds12 <- rbind(serp_pds1, serp_pds.10.15.2018_2)
+serp_10.22.2018_pds12 <- rbind(serp_pds1, serp_pds.10.22.2018_2)
+serp_11.12.2018_pds12 <- rbind(serp_pds1, serp_pds.11.12.2018_2)
+serp_11.19.2018_pds12 <- rbind(serp_pds1, serp_pds.11.19.2018_2)
+#calculate time to event ("pds" == 4)
+#date.8.22.2018 - lag(date.10.1.2018)
+bolt.2 <- serp_8.29.2018_pds12 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.8.29.2018 - lag(date.8.22.2018))
+bolt.2
+#subset to include observations that have a time difference
+bolt.2.t <- subset(bolt.2, diff!="NA")
+bolt.2.t$stop <- bolt.2.t$diff
+#calculate time to event ("pds" == 4)
+bolt.3 <- serp_9.3.2018_pds12 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.9.3.2018 - lag(date.8.22.2018))
+bolt.3
+#subset to include observations that have a time difference
+bolt.3.t <- subset(bolt.3, diff!="NA")
+bolt.3.t$stop <- bolt.3.t$diff
+#calculate time to event ("pds" == 4)
+bolt.4 <- serp_9.10.2018_pds12 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.9.10.2018 - lag(date.8.22.2018))
+bolt.4
+#subset to include observations that have a time difference
+bolt.4.t <- subset(bolt.4, diff!="NA")
+bolt.4.t$stop <- bolt.4.t$diff
+#calculate time to event ("pds" == 4)
+bolt.5 <- serp_9.17.2018_pds12 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.9.17.2018 - lag(date.8.22.2018))
+bolt.5
+#subset to include observations that have a time difference
+bolt.5.t <- subset(bolt.5, diff!="NA")
+bolt.5.t$stop <- bolt.5.t$diff
+#calculate time to event ("pds" == 4)
+bolt.6 <- serp_9.24.2018_pds12 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.9.24.2018 - lag(date.8.22.2018))
+bolt.6
+#subset to include observations that have a time difference
+bolt.6.t <- subset(bolt.6, diff!="NA")
+bolt.6.t$stop <- bolt.6.t$diff
+#calculate time to event ("pds" == 4)
+bolt.7 <- serp_10.1.2018_pds12 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.1.2018 - lag(date.8.22.2018))
+bolt.7
+#subset to include observations that have a time difference
+bolt.7.t <- subset(bolt.7, diff!="NA")
+bolt.7.t$stop <- bolt.7.t$diff
+#calculate time to event ("pds" == 4)
+bolt.8 <- serp_10.8.2018_pds12 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.8.2018 - lag(date.8.22.2018))
+bolt.8
+#subset to include observations that have a time difference
+bolt.8.t <- subset(bolt.8, diff!="NA")
+bolt.8.t$stop <- bolt.8.t$diff
+#calculate time to event ("pds" == 4)
+bolt.9 <- serp_10.15.2018_pds12 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.15.2018 - lag(date.8.22.2018))
+bolt.9
+#subset to include observations that have a time difference
+bolt.9.t <- subset(bolt.9, diff!="NA")
+bolt.9.t$stop <- bolt.9.t$diff
+#calculate time to event ("pds" == 4)
+bolt.10 <- serp_10.22.2018_pds12 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.22.2018 - lag(date.8.22.2018))
+bolt.10
+#subset to include observations that have a time difference
+bolt.10.t <- subset(bolt.10, diff!="NA")
+bolt.10.t$stop <- bolt.10.t$diff
+#calculate time to event ("pds" == 4)
+bolt.11 <- serp_11.12.2018_pds12 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.11.12.2018 - lag(date.8.22.2018))
+bolt.11
+#subset to include observations that have a time difference
+bolt.11.t <- subset(bolt.11, diff!="NA")
+bolt.11.t$stop <- bolt.11.t$diff
+#calculate time to event ("pds" == 4)
+bolt.12 <- serp_11.12.2018_pds12 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.11.12.2018 - lag(date.8.22.2018))
+bolt.12
+#subset to include observations that have a time difference
+bolt.12.t <- subset(bolt.11, diff!="NA")
+bolt.12.t$stop <- bolt.12.t$diff
+
+
+
+#combine data frames with lag time
+serp_pds12<-rbind(bolt.2.t,bolt.3.t,bolt.4.t,bolt.5.t,bolt.6.t,bolt.7.t,bolt.8.t,bolt.9.t,bolt.10.t,bolt.11.t,bolt.12.t)
+#check for dublicate samples
+table(serp_pds12$sample_num)
+#select for unique samples
+#serp_pds14 <- serp_pds14[match(unique(serp_pds14$sample_num), serp_pds14$sample_num),]
+serp_pds12 <- serp_pds12[!duplicated(serp_pds12$sample_num), ]
+#drop treatments with 0 observations
+#serp_pds14$soil_let <- droplevels(serp_pds14)$soil_let
+#add event binary event column
+serp_pds12$bolting <- 1
+
+#create data.frame with samples not in combined data frame (serp_pds14)
+rownames(serp_pds12) <- serp_pds12$sample_num
+rownames(timeseries2) <- timeseries2$sample_num
+r.bolt <- !rownames(timeseries2) %in% serp_pds12$sample_num
+r.bolt
+rf.list.bolt<-as.data.frame(timeseries2 [r.bolt, ])
+#rf.list.bolt$diff <- 0
+#rf.list.bolt$stop <- 0
+#rf.list.bolt$bolting <- 0
+class(serp_pds12)
+class(rf.list.bolt)
+serp_pds12_all<-rbind(as.data.frame(serp_pds12),rf.list.bolt)
+serp_pds12_all$bolting <- as.integer(serp_pds12_all$bolting)
+str(serp_pds12_all$bolting)
+str(serp_pds12_all$date.8.22.2018)
+
+#survival analysis
+S.bolt <- Surv(
+  #time = serp_pds14_all$start, 
+  time = serp_pds12_all$stop, 
+  event = serp_pds12_all$bolting)
+
+model.bolt<-survfit(S.bolt~soil_let, data=serp_pds12_all)
+model.bolt
+plot.fit.soil_let_12 <- ggsurvplot((model.bolt),data=serp_pds12_all, fun="event", conf.int = FALSE, censor=FALSE, legend.title = "Treatment", xlab = "Days to Bolting", ylab = "Overall Bolting Probability")
+plot.fit.soil_let_12<-plot.fit.soil_let_12$plot + theme_bw()+facet_wrap(.~soil_let)
+plot.fit.soil_let_12
+
+serp_pds12_all$soil_stress = relevel(serp_pds12_all$soil_stress, ref = "S")
+serp_pds12_all$microbe_type = relevel(serp_pds12_all$microbe_type, ref = "serpentine")
+
+serp_pds12_all$soil_let <- droplevels(serp_pds12_all)$soil_let
+
+model.cox_soil_let_12<- coxph(S~soil_let, data=serp_pds12_all)
+ggforest(model.cox_soil_let_12, data=serp_pds12_all)
+```
+##Survival analysis - Vegetative
+```{r}
+#subset instances of seedlings for each column date (pds.[date]=="1")
+timeseries2<-subset(timeseries,pds!="1"&pds!="6")
+serp_pds1 <- subset(timeseries2, pds.8.22.2018=="1")
+#if number of observations is different, check to see which samples are missing
+rownames(serp_pds1) <- serp_pds1$sample_num
+rownames(timeseries2) <- timeseries2$sample_num
+q.veg <- !rownames(timeseries2) %in% serp_pds1$sample_num
+q.veg
+qf.list.veg<-as.data.frame(timeseries2 [q.veg, ])
+
+#subset instances of flowering for each column date (pds.[date]=="2")
+serp_pds.8.29.2018_3 <- subset(timeseries2, pds.8.29.2018=="3")
+serp_pds.9.3.2018_3 <- subset(timeseries2, pds.9.3.2018=="3")
+serp_pds.9.10.2018_3 <- subset(timeseries2, pds.9.10.2018=="3")
+serp_pds.9.17.2018_3 <- subset(timeseries2, pds.9.17.2018=="3")
+serp_pds.9.24.2018_3 <- subset(timeseries2, pds.9.24.2018=="3")
+serp_pds.10.1.2018_3 <- subset(timeseries2, pds.10.1.2018=="3")
+serp_pds.10.8.2018_3 <- subset(timeseries2, pds.10.8.2018=="3")
+serp_pds.10.15.2018_3 <- subset(timeseries2, pds.10.15.2018=="3")
+serp_pds.10.22.2018_3 <- subset(timeseries2, pds.10.22.2018=="3")
+serp_pds.11.12.2018_3 <- subset(timeseries2, pds.11.12.2018=="3")
+serp_pds.11.19.2018_3 <- subset(timeseries2, pds.11.19.2018=="3")
+serp_pds.11.26.2018_3 <- subset(timeseries2, pds.11.26.2018=="3")
+#combine pds1 and pds4 data frames for each date that has observations
+serp_8.29.2018_pds13 <- rbind(serp_pds1, serp_pds.8.29.2018_3)
+serp_9.3.2018_pds13 <- rbind(serp_pds1, serp_pds.9.3.2018_3)
+serp_9.10.2018_pds13 <- rbind(serp_pds1, serp_pds.9.10.2018_3)
+serp_9.17.2018_pds13 <- rbind(serp_pds1, serp_pds.9.17.2018_3)
+serp_9.24.2018_pds13 <- rbind(serp_pds1, serp_pds.9.24.2018_3)
+serp_10.1.2018_pds13 <- rbind(serp_pds1, serp_pds.10.1.2018_3)
+serp_10.8.2018_pds13 <- rbind(serp_pds1, serp_pds.10.8.2018_3)
+serp_10.15.2018_pds13 <- rbind(serp_pds1, serp_pds.10.15.2018_3)
+serp_10.22.2018_pds13 <- rbind(serp_pds1, serp_pds.10.22.2018_3)
+serp_11.12.2018_pds13 <- rbind(serp_pds1, serp_pds.11.12.2018_3)
+serp_11.19.2018_pds13 <- rbind(serp_pds1, serp_pds.11.19.2018_3)
+#calculate time to event ("pds" == 4)
+#date.8.22.2018 - lag(date.10.1.2018)
+veg.2 <- serp_8.29.2018_pds13 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.8.29.2018 - lag(date.8.22.2018))
+veg.2
+#subset to include observations that have a time difference
+veg.2.t <- subset(veg.2, diff!="NA")
+veg.2.t$stop <- veg.2.t$diff
+#calculate time to event ("pds" == 4)
+veg.3 <- serp_9.3.2018_pds13 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.9.3.2018 - lag(date.8.22.2018))
+veg.3
+#subset to include observations that have a time difference
+veg.3.t <- subset(veg.3, diff!="NA")
+veg.3.t$stop <- veg.3.t$diff
+#calculate time to event ("pds" == 4)
+veg.4 <- serp_9.10.2018_pds13 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.9.10.2018 - lag(date.8.22.2018))
+veg.4
+#subset to include observations that have a time difference
+veg.4.t <- subset(veg.4, diff!="NA")
+veg.4.t$stop <- veg.4.t$diff
+#calculate time to event ("pds" == 4)
+veg.5 <- serp_9.17.2018_pds13 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.9.17.2018 - lag(date.8.22.2018))
+veg.5
+#subset to include observations that have a time difference
+veg.5.t <- subset(veg.5, diff!="NA")
+veg.5.t$stop <- veg.5.t$diff
+#calculate time to event ("pds" == 4)
+veg.6 <- serp_9.24.2018_pds13 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.9.24.2018 - lag(date.8.22.2018))
+veg.6
+#subset to include observations that have a time difference
+veg.6.t <- subset(veg.6, diff!="NA")
+veg.6.t$stop <- veg.6.t$diff
+#calculate time to event ("pds" == 4)
+veg.7 <- serp_10.1.2018_pds13 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.1.2018 - lag(date.8.22.2018))
+veg.7
+#subset to include observations that have a time difference
+veg.7.t <- subset(veg.7, diff!="NA")
+veg.7.t$stop <- veg.7.t$diff
+#calculate time to event ("pds" == 4)
+veg.8 <- serp_10.8.2018_pds13 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.8.2018 - lag(date.8.22.2018))
+veg.8
+#subset to include observations that have a time difference
+veg.8.t <- subset(veg.8, diff!="NA")
+veg.8.t$stop <- veg.8.t$diff
+#calculate time to event ("pds" == 4)
+veg.9 <- serp_10.15.2018_pds13 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.15.2018 - lag(date.8.22.2018))
+veg.9
+#subset to include observations that have a time difference
+veg.9.t <- subset(veg.9, diff!="NA")
+veg.9.t$stop <- veg.9.t$diff
+#calculate time to event ("pds" == 4)
+veg.10 <- serp_10.22.2018_pds13 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.22.2018 - lag(date.8.22.2018))
+veg.10
+#subset to include observations that have a time difference
+veg.10.t <- subset(veg.10, diff!="NA")
+veg.10.t$stop <- veg.10.t$diff
+#calculate time to event ("pds" == 4)
+veg.11 <- serp_11.12.2018_pds13 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.11.12.2018 - lag(date.8.22.2018))
+veg.11
+#subset to include observations that have a time difference
+veg.11.t <- subset(veg.11, diff!="NA")
+veg.11.t$stop <- veg.11.t$diff
+#calculate time to event ("pds" == 4)
+veg.12 <- serp_11.12.2018_pds13 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.11.12.2018 - lag(date.8.22.2018))
+veg.12
+#subset to include observations that have a time difference
+veg.12.t <- subset(veg.11, diff!="NA")
+veg.12.t$stop <- veg.12.t$diff
+
+#combine data frames with lag time
+serp_pds13<-rbind(veg.2.t,veg.3.t,veg.4.t,veg.5.t,veg.6.t,veg.7.t,veg.8.t,veg.9.t,veg.10.t,veg.11.t,veg.12.t)
+#check for dublicate samples
+table(serp_pds13$sample_num)
+#select for unique samples
+#serp_pds14 <- serp_pds14[match(unique(serp_pds14$sample_num), serp_pds14$sample_num),]
+serp_pds13 <- serp_pds13[!duplicated(serp_pds13$sample_num), ]
+#drop treatments with 0 observations
+#serp_pds14$soil_let <- droplevels(serp_pds14)$soil_let
+#add event binarveg. event column
+serp_pds13$vegetative <- 1
+
+#create data.frame with samples not in combined data frame (serp_pds14)
+rownames(serp_pds13) <- serp_pds13$sample_num
+rownames(timeseries2) <- timeseries2$sample_num
+r.veg <- !rownames(timeseries2) %in% serp_pds13$sample_num
+r.veg
+rf.list.veg<-as.data.frame(timeseries2 [r.veg, ])
+rf.list.veg$diff <- 0
+rf.list.veg$stop <- 0
+rf.list.veg$vegetative <- 0
+class(serp_pds13)
+class(rf.list.veg)
+serp_pds13_all<-rbind(as.data.frame(serp_pds13),rf.list.veg)
+serp_pds13_all$vegetative <- as.integer(serp_pds13_all$vegetative)
+str(serp_pds13_all$vegetative)
+str(serp_pds13_all$date.8.22.2018)
+
+#survival analysis
+S.veg <- Surv(
+  #time = serp_pds14_all$start, 
+  time = serp_pds13_all$stop, 
+  event = serp_pds13_all$vegetative)
+
+model.veg<-survfit(S.veg~soil_let, data=serp_pds13_all)
+model.veg
+plot.fit.soil_let_13 <- ggsurvplot((model.veg),data=serp_pds13_all, fun="event", conf.int = TRUE, censor=FALSE, legend.title = "Treatment", xlab = "Days to Vegetative Growth", ylab = "Overall Vegetative Growth Probability")
+plot.fit.soil_let_13<-plot.fit.soil_let_13$plot + theme_bw()+facet_wrap(.~soil_let)
+plot.fit.soil_let_13
+
+serp_pds13_all$soil_let <- droplevels(serp_pds13_all)$soil_let
+
+serp_pds13_all$soil_stress = relevel(serp_pds13_all$soil_stress, ref = "S")
+serp_pds13_all$microbe_type = relevel(serp_pds13_all$microbe_type, ref = "serpentine")
+
+model.cox_soil_let_13<- coxph(S.veg~soil_let, data=serp_pds13_all)
+ggforest(model.cox_soil_let_13, data=serp_pds13_all)
+```
+##Survival analysis - Flowering
+```{r}
+#subset instances of seedlings for each column date (pds.[date]=="1")
+timeseries2<-subset(timeseries,pds!="1"&pds!="6")
+serp_pds1 <- subset(timeseries2, pds.8.22.2018=="1")
+#if number of observations is different, check to see which samples are missing
+rownames(serp_pds1) <- serp_pds1$sample_num
+rownames(timeseries2) <- timeseries2$sample_num
+q.flow <- !rownames(timeseries2) %in% serp_pds1$sample_num
+q.flow
+qf.list.flow<-as.data.frame(timeseries2 [q.flow, ])
+
+#subset instances of flowering for each column date (pds.[date]=="4")
+serp_pds.8.29.2018_4 <- subset(timeseries2, pds.8.29.2018=="4")
+serp_pds.9.3.2018_4 <- subset(timeseries2, pds.9.3.2018=="4")
+serp_pds.9.10.2018_4 <- subset(timeseries2, pds.9.10.2018=="4")
+serp_pds.9.17.2018_4 <- subset(timeseries2, pds.9.17.2018=="4")
+serp_pds.9.24.2018_4 <- subset(timeseries2, pds.9.24.2018=="4")
+serp_pds.10.1.2018_4 <- subset(timeseries2, pds.10.1.2018=="4")
+serp_pds.10.8.2018_4 <- subset(timeseries2, pds.10.8.2018=="4")
+serp_pds.10.15.2018_4 <- subset(timeseries2, pds.10.15.2018=="4")
+serp_pds.10.22.2018_4 <- subset(timeseries2, pds.10.22.2018=="4")
+serp_pds.11.12.2018_4 <- subset(timeseries2, pds.11.12.2018=="4")
+serp_pds.11.19.2018_4 <- subset(timeseries2, pds.11.19.2018=="4")
+serp_pds.11.26.2018_4 <- subset(timeseries2, pds.11.26.2018=="4")
+#combine pds1 and pds4 data frames for each date that has observations
+serp_10.1.2018_pds14 <- rbind(serp_pds1, serp_pds.10.1.2018_4)
+serp_10.8.2018_pds14 <- rbind(serp_pds1, serp_pds.10.8.2018_4)
+serp_10.15.2018_pds14 <- rbind(serp_pds1, serp_pds.10.15.2018_4)
+serp_10.22.2018_pds14 <- rbind(serp_pds1, serp_pds.10.22.2018_4)
+serp_11.12.2018_pds14 <- rbind(serp_pds1, serp_pds.11.12.2018_4)
+serp_11.19.2018_pds14 <- rbind(serp_pds1, serp_pds.11.19.2018_4)
+#calculate time to event ("pds" == 4)
+#date.8.22.2018 - lag(date.10.1.2018)
+flow.2 <- serp_10.1.2018_pds14 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.1.2018 - lag(date.8.22.2018))
+flow.2
+#subset to include observations that have a time difference
+flow.2.t <- subset(flow.2, diff!="NA")
+flow.2.t$stop <- flow.2.t$diff
+#calculate time to event ("pds" == 4)
+flow.3 <- serp_10.8.2018_pds14 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.8.2018 - lag(date.8.22.2018))
+flow.3
+#subset to include observations that have a time difference
+flow.3.t <- subset(flow.3, diff!="NA")
+flow.3.t$stop <- flow.3.t$diff
+#calculate time to event ("pds" == 4)
+flow.4 <- serp_10.15.2018_pds14 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.15.2018 - lag(date.8.22.2018))
+flow.4
+#subset to include observations that have a time difference
+flow.4.t <- subset(flow.4, diff!="NA")
+flow.4.t$stop <- flow.4.t$diff
+#calculate time to event ("pds" == 4)
+flow.5 <- serp_10.22.2018_pds14 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.10.22.2018 - lag(date.8.22.2018))
+flow.5
+#subset to include observations that have a time difference
+flow.5.t <- subset(flow.5, diff!="NA")
+flow.5.t$stop <- flow.5.t$diff
+#calculate time to event ("pds" == 4)
+flow.6 <- serp_11.12.2018_pds14 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.11.12.2018 - lag(date.8.22.2018))
+flow.6
+#subset to include observations that have a time difference
+flow.6.t <- subset(flow.6, diff!="NA")
+flow.6.t$stop <- flow.6.t$diff
+#calculate time to event ("pds" == 4)
+flow.7 <- serp_11.19.2018_pds14 %>%
+  arrange(sample_num) %>%
+  group_by(sample_num) %>%
+  mutate(diff = date.11.19.2018 - lag(date.8.22.2018))
+flow.7
+#subset to include observations that have a time difference
+flow.7.t <- subset(flow.7, diff!="NA")
+flow.7.t$stop <- flow.7.t$diff
+
+#combine data frames with lag time
+serp_pds14<-rbind(flow.2.t,flow.3.t,flow.4.t,flow.5.t,flow.6.t,flow.7.t)
+#check for dublicate samples
+table(serp_pds14$sample_num)
+#select for unique samples
+#serp_pds14 <- serp_pds14[match(unique(serp_pds14$sample_num), serp_pds14$sample_num),]
+serp_pds14 <- serp_pds14[!duplicated(serp_pds14$sample_num), ]
+#drop treatments with 0 observations
+#serp_pds14$soil_let <- droplevels(serp_pds14)$soil_let
+#add event binarflow. event column
+serp_pds14$flowering <- 1
+
+#create data.frame with samples not in combined data frame (serp_pds14)
+rownames(serp_pds14) <- serp_pds14$sample_num
+rownames(timeseries2) <- timeseries2$sample_num
+r.flow <- !rownames(timeseries2) %in% serp_pds14$sample_num
+r.flow
+rf.list.flow<-as.data.frame(timeseries2 [r.flow, ])
+rf.list.flow$diff <- 0
+rf.list.flow$stop <- 0
+rf.list.flow$flowering <- 0
+class(serp_pds14)
+class(rf.list.flow)
+serp_pds14_all<-rbind(as.data.frame(serp_pds14),rf.list.flow)
+serp_pds14_all$flowering <- as.integer(serp_pds14_all$flowering)
+str(serp_pds14_all$flowering)
+str(serp_pds14_all$date.8.22.2018)
+
+#survival analysis
+S.flow <- Surv(
+  #time = serp_pds14_all$start, 
+  time = serp_pds14_all$stop, 
+  event = serp_pds14_all$flowering)
+
+model.flow<-survfit(S.flow~soil_let, data=serp_pds14_all)
+model.flow
+plot.fit.soil_let <- ggsurvplot((model.flow),data=serp_pds14_all, fun="event", conf.int = TRUE, censor=FALSE, legend.title = "Treatment", xlab = "Days to Flowering", ylab = "Overall Flowering Probability")
+plot.fit.soil_let<-plot.fit.soil_let$plot + theme_bw()+facet_wrap(.~soil_let)
+plot.fit.soil_let
+
+serp_pds14_all$soil_stress = relevel(serp_pds14_all$soil_stress, ref = "S")
+serp_pds14_all$microbe_type = relevel(serp_pds14_all$microbe_type, ref = "serpentine")
+serp_pds14_all$soil_let <- droplevels(serp_pds14_all)$soil_let
+model.cox_soil_let_14 <- coxph(S.flow~soil_let, data=serp_pds14_all)
+model.cox_soil_let_14
+ggforest(model.cox_soil_let_14, data=serp_pds14_all)
+```
+#System and session info
+```{r}
+Sys.info()
+sessionInfo()
+```
