@@ -8,6 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+--- ORIGINAL CODE ---
 #Load libraries
 ```{r}
 library(phyloseq)
@@ -1510,3 +1511,454 @@ ggforest(model.cox_soil_let_14, data=serp_pds14_all)
 Sys.info()
 sessionInfo()
 ```
+--- REVISED CODE WITH SEQUENCES RAREFIED TO EVEN DEPTH ---
+#Load libraries
+```{r}
+library(phyloseq)
+library(decontam)
+library(dplyr)
+library(RColorBrewer)
+library(ggpubr)
+library(vegan)
+library(ggplot2)
+library(lubridate)
+library(lme4)
+library(survival)
+library(survminer)
+library(DESeq2)
+library(car)
+library(emmeans)
+library(viridis)
+```
+#Microbial Community Analysis
+##Import data
+```{r import data, include=FALSE}
+otu <- readRDS("~/Desktop/R/serpnon_timeseries/input/serpnon_timeseries_otu_dada.rds")
+tax <- readRDS("~/Desktop/R/serpnon_timeseries/input/serpnon_timeseries_silva.rds")
+fitGTR <- readRDS("~/Desktop/R/serpnon_timeseries/input/seqtab.nochim_tree.RDS")
+ps.metadata <- read.csv("~/Desktop/R/serpnon_timeseries/input/timeseries_metadata_phyloseq.csv",row.names=2)
+```
+##Create phyloseq objects
+```{r otu table, include=FALSE}
+OTU = otu_table(otu, taxa_are_rows=FALSE)
+TAX = tax_table(as.matrix(tax))
+TREE = phy_tree(fitGTR$tree)
+META <- sample_data(ps.metadata)
+ps = phyloseq(OTU, TAX, TREE, META)
+ps
+```
+##Rarefaction curves by soil type (Supplemental Figures 1-6)
+###A
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.A<- ps %>%
+  subset_samples(
+    soil_let == "A"
+    )
+
+timeseries.otu.A <- as(otu_table(ps.A), "matrix")
+Rarecurve.A <- rarecurve((timeseries.otu.A), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+Rarecurve.A
+```
+###B
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.B<- ps %>%
+  subset_samples(
+    soil_let == "B"
+    )
+
+timeseries.otu.B <- as(otu_table(ps.B), "matrix")
+Rarecurve.B <- rarecurve((timeseries.otu.B), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+```
+###C
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.C<- ps %>%
+  subset_samples(
+    soil_let == "C"
+    )
+
+timeseries.otu.C <- as(otu_table(ps.C), "matrix")
+Rarecurve.C <- rarecurve((timeseries.otu.C), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+```
+###D
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.D<- ps %>%
+  subset_samples(
+    soil_let == "D"
+    )
+
+timeseries.otu.D <- as(otu_table(ps.D), "matrix")
+Rarecurve.D <- rarecurve((timeseries.otu.D), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+```
+###E
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.E<- ps %>%
+  subset_samples(
+    soil_let == "E"
+    )
+
+timeseries.otu.E <- as(otu_table(ps.E), "matrix")
+Rarecurve.E <- rarecurve((timeseries.otu.E), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+```
+###F
+```{r, include=TRUE}
+#rarefaction curve practice: http://www.fromthebottomoftheheap.net/2015/04/16/drawing-rarefaction-curves-with-custom-colours/
+#below: plot rarefaction curve to check before rarefying
+ps.F<- ps %>%
+  subset_samples(
+    soil_let == "F"
+    )
+
+timeseries.otu.F <- as(otu_table(ps.F), "matrix")
+Rarecurve.F <- rarecurve((timeseries.otu.F), step = 100, xlab = "Reads", ylab = "Amplicon Sequence Variants (ASV)", label = TRUE)
+```
+
+##Remove mitochondria and chloroplast
+```{r remove mitochondria, include=FALSE}
+ps.bactsubset <- ps %>%
+  subset_taxa(
+    Kingdom == "Bacteria" &
+    Family  != "Mitochondria" &
+    Class   != "Chloroplast"
+  )
+ps.bactsubset
+```
+##Rarefy to even depth
+```{r}
+# rarefy without replacement
+ps.bact <- rarefy_even_depth(ps.bactsubset, rngseed=1, sample.size=0.9*min(sample_sums(ps.bactsubset)), replace=F)
+```
+
+##Change taxa names to Seq #
+```{r}
+taxa_names(ps.bact) <- paste0("Seq", seq(ntaxa(ps.bact)))
+dim(otu_table(ps.bact))
+```
+##Decontam
+```{r}
+ps.bact@sam_data$sample_or_control<-ps.bact@sam_data$soil_let
+ps.bact@sam_data$sample_or_control<-as.character(ps.bact@sam_data$sample_or_control)
+#ps.bact@sam_data$sample_or_control[ps.bact@sam_data$sample_or_control=="A"]<-"sample"
+#ps.bact@sam_data$sample_or_control[ps.bact@sam_data$sample_or_control=="B"]<-"sample"
+#ps.bact@sam_data$sample_or_control[ps.bact@sam_data$sample_or_control=="C"]<-"sample"
+#ps.bact@sam_data$sample_or_control[ps.bact@sam_data$sample_or_control=="D"]<-"sample"
+#ps.bact@sam_data$sample_or_control[ps.bact@sam_data$sample_or_control=="E"]<-"sample"
+#ps.bact@sam_data$sample_or_control[ps.bact@sam_data$sample_or_control=="F"]<-"sample"
+ps.bact@sam_data$sample_or_control[ps.bact@sam_data$sample_or_control!="CON"]<-"sample"
+ps.bact@sam_data$sample_or_control[ps.bact@sam_data$sample_or_control=="CON"]<-"control"
+ps.bact@sam_data$sample_or_control<-as.factor(ps.bact@sam_data$sample_or_control)
+ps.bact@sam_data$sample_or_control
+```
+```{r}
+df <- as.data.frame(sample_data(ps.bact)) # Put sample_data into a ggplot-friendly data.frame
+df$LibrarySize <- sample_sums(ps.bact)
+df <- df[order(df$LibrarySize),]
+df$Index <- seq(nrow(df))
+ggplot(data=df, aes(x=Index, y=LibrarySize, color=sample_or_control)) + geom_point()
+```
+```{r}
+sample_data(ps.bact)$is.neg <- sample_data(ps.bact)$sample_or_control == "control"
+contamdf.prev <- isContaminant(ps.bact, method="prevalence", neg="is.neg", threshold = 0.025, batch=ps.bact@sam_data$date.dna)
+table(contamdf.prev$contaminant)
+head(which(contamdf.prev$contaminant))
+contamdf.prev_decontam <- subset(contamdf.prev, contamdf.prev$contaminant=="FALSE")
+ps.bact.decontam <- subset_taxa(ps.bact, taxa_names(ps.bact)%in%rownames(contamdf.prev_decontam))
+ps.bact.decontam
+contamdf.prev_contam <- subset(contamdf.prev, contamdf.prev$contaminant=="TRUE")
+ps.bact.contam <- subset_taxa(ps.bact, taxa_names(ps.bact)%in%rownames(contamdf.prev_contam))
+ps.bact.contam
+```
+```{r}
+# Make phyloseq object of presence-absence in negative controls and true samples
+ps.bact.pa <- transform_sample_counts(ps.bact, function(abund) 1*(abund>0))
+ps.bact.pa.neg <- prune_samples(sample_data(ps.bact.pa)$sample_or_control == "control", ps.bact.pa)
+ps.bact.pa.pos <- prune_samples(sample_data(ps.bact.pa)$sample_or_control == "sample", ps.bact.pa)
+# Make data.frame of prevalence in positive and negative samples
+df.pa <- data.frame(pa.pos=taxa_sums(ps.bact.pa.pos), pa.neg=taxa_sums(ps.bact.pa.neg),
+                      contaminant=contamdf.prev$contaminant)
+ggplot(data=df.pa, aes(x=pa.neg, y=pa.pos, color=contaminant)) + geom_point() +
+  xlab("Prevalence (Negative Controls)") + ylab("Prevalence (True Samples)")
+```
+##Normalize sequences for bray-curtis
+```{r}
+#for bray-curtis
+ps.bact.decontam_prop <- transform_sample_counts(ps.bact.decontam, function(x) x/sum(x))
+ps.bact.decontam_prop <- subset_taxa(ps.bact.decontam_prop,taxa_sums(ps.bact.decontam_prop)>0)
+ps.bact.decontam_prop
+dim(otu_table(ps.bact.decontam_prop))
+```
+##labels
+```{r}
+microbe_labels <- c("nonserpentine"="NS Microbes", "serpentine"="S Microbes")
+soil_let_labels <- c("A"="S+Sm", "B"="NS+NSm", "C"="S+NSm", "D"="NS+Sm", "E"="NS+Sm+Ni", "F"="NS+Sm+Drought")
+```
+##Subset samples
+###A-F soil types
+```{r, include=FALSE}
+ps.bact.decontam.af <- ps.bact.decontam %>%
+  subset_samples(
+    soil_let == "A" |
+    soil_let == "B" |
+    soil_let == "C" |
+    soil_let == "D" |
+    soil_let == "E" |
+    soil_let == "F" |
+    soil_let != "CON")
+
+ps.bact.decontam.af <- ps.bact.decontam.af %>%
+  subset_samples(
+    pds=="0" |
+    pds=="1" |
+    pds=="2" |
+    pds=="3" |
+    pds=="4" )
+
+ps.bact.decontam.af
+```
+```{r}
+ps.bact.decontam.af_prop <- ps.bact.decontam_prop %>%
+  subset_samples(
+    soil_let == "A" |
+    soil_let == "B" |
+    soil_let == "C" |
+    soil_let == "D" |
+    soil_let == "E" |
+    soil_let == "F" |
+    soil_let != "CON")
+
+ps.bact.decontam.af_prop <- ps.bact.decontam.af_prop %>%
+  subset_samples(
+    pds=="0" |
+    pds=="1" |
+    pds=="2" |
+    pds=="3" |
+    pds=="4" )
+
+ps.bact.decontam.af_prop
+```
+##Figure 1
+###What is the relative abundance of each phylum within the different samples?
+```{r}
+#wrangle data
+ps.bact.decontam_phylum <- ps.bact.decontam.af %>%
+  tax_glom(taxrank = "Phylum") %>%                     # agglomerate at phylum level
+ transform_sample_counts(function(x) {x/sum(x)} ) %>% # Transform to rel. abundance
+  psmelt() %>%                                         # Melt to long format
+  filter(Abundance > 0.02) %>%                         # Filter out low abundance taxa
+  arrange(Phylum)
+ps.bact.decontam_phylum
+```
+```{r}
+#abundance table
+sd_phylum <- ps.bact.decontam_phylum %>% group_by(soil_stress,microbe_type,pds,Phylum) %>% dplyr::summarise(mean(Abundance, na.rm = TRUE))
+sd_phylum
+```
+###What is the alpha diversity?
+```{r}
+#table of richness
+sg.richness <- estimate_richness(ps.bact.decontam.af, measures=c("Shannon"))
+sg.richness$Shannon
+sg.richness$ID <- row.names(sg.richness)
+View(sg.richness)
+timeseries.af.df <- as(sample_data(ps.bact.decontam.af), "data.frame")
+timeseries.af.df$ID <- row.names(timeseries.af.df)
+timeseries.df.richness <- merge(timeseries.af.df,sg.richness,by="ID")
+row.names(timeseries.df.richness)<-timeseries.df.richness$ID
+
+#abundance table
+sd_richness <- timeseries.df.richness %>% group_by(soil_stress,microbe_type,pds) %>% dplyr::summarise(mean(Shannon, na.rm = TRUE))
+sd_richness
+```
+```{r}
+#statistical analysis of shannon
+field.fit.shannon <- lm(estimate_richness(ps.bact.decontam.af)$Shannon ~ soil_stress*microbe_type*pds+tray, data=as(sample_data(ps.bact.decontam.af), "data.frame"))
+summary(aov(field.fit.shannon))
+TukeyHSD(aov(field.fit.shannon))
+```
+###Figure 1 - relative abundance + richness
+```{r}
+ps.bact.decontam_phylum$soil_stress_new<-factor(ps.bact.decontam_phylum$soil_stress, levels=c("S","NS","NS+Drought","NS+Ni"))
+
+ps.bact.decontam.af@sam_data$soil_stress_new<-factor(ps.bact.decontam.af@sam_data$soil_stress, levels=c("S","NS","NS+Drought","NS+Ni"))
+
+# Define the number of colors you want
+nb.cols <- length(unique(ps.bact.decontam_phylum$Phylum))
+mycolors <- colorRampPalette(brewer.pal(11, "Spectral"))(nb.cols)
+
+ps.bact.decontam_phylum_bar<-ggplot(ps.bact.decontam_phylum, aes(x = pds, y = Abundance, fill = Phylum)) + theme_bw() + facet_grid(microbe_type~soil_stress_new, labeller=labeller(microbe_type = microbe_labels)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering")) +
+  geom_bar(stat="identity", position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  #fill=mycolors(nb.cols) +
+  scale_fill_manual(values=mycolors) +
+  theme(text = element_text(size=16)) +
+  ylab ("Relateve Abundance (Phyla > 2%)") +
+  xlab ("Plant Developmental Phase") +
+  theme(legend.position="bottom",
+        axis.text.x = element_text(angle=90, hjust=0.5, vjust=0.5)) +
+  guides(fill=guide_legend(legend.position="bottom", nrow=4))
+
+sg_richness_plot <- plot_richness(ps.bact.decontam.af, x="pds", measures=c("Shannon")) +  theme_bw() + 
+  facet_grid(microbe_type~soil_stress_new, labeller=labeller(microbe_type = microbe_labels)) +
+  scale_x_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering")) +
+  geom_boxplot() +
+  xlab ("Plant Developmental Phase") +
+  scale_color_viridis(discrete=TRUE, option="inferno") + 
+  theme(text = element_text(size=16), axis.text.x = element_text(angle=90, hjust=1, vjust=0.9), legend.title=element_blank())
+sg_richness_plot$layers <- sg_richness_plot$layers[-1]
+
+fig.1<-ggarrange(ps.bact.decontam_phylum_bar,sg_richness_plot, labels="auto", nrow=1,  widths = c(1.25, 1))
+fig.1
+#ggsave("/Users/anigwe/Desktop/strep_figures/figure1.tiff", height=180, width=350, units='mm', dpi=200)
+```
+##Figure 2
+###What is the beta diversity? - bray
+```{r}
+#stats bray
+serpnon.timeseries.af_bray <- phyloseq::distance(ps.bact.decontam.af_prop, method="bray")
+#summary(strep.bray)
+sampledf.strep <- data.frame(sample_data(ps.bact.decontam.af_prop))
+adonis.serpnon.timeseries.af.bray <- adonis(serpnon.timeseries.af_bray ~ soil_stress*microbe_type*pds+tray, data = sampledf.strep)
+adonis.serpnon.timeseries.af.bray
+#betadisper
+beta.serpnon.timeseries.af.bray_sc <- betadisper(serpnon.timeseries.af_bray, sampledf.strep$soil_stress, type="centroid")
+permutest(beta.serpnon.timeseries.af.bray_sc)
+boxplot(beta.serpnon.timeseries.af.bray_sc)
+TukeyHSD(beta.serpnon.timeseries.af.bray_sc)
+
+beta.serpnon.timeseries.af.bray <- betadisper(serpnon.timeseries.af_bray, sampledf.strep$pds, type="centroid")
+permutest(beta.serpnon.timeseries.af.bray)
+boxplot(beta.serpnon.timeseries.af.bray)
+TukeyHSD(beta.serpnon.timeseries.af.bray)
+
+beta.serpnon.timeseries.af.bray_ms <- betadisper(serpnon.timeseries.af_bray, sampledf.strep$microbe_type, type="centroid")
+permutest(beta.serpnon.timeseries.af.bray_ms)
+boxplot(beta.serpnon.timeseries.af.bray_ms)
+TukeyHSD(beta.serpnon.timeseries.af.bray_ms)
+```
+###Figure 2 - Bray-Curtis Dissimilarity
+```{r}
+ps.bact.decontam.af_prop@sam_data$soil_stress_new<-factor(ps.bact.decontam.af_prop@sam_data$soil_stress, levels=c("S","NS","NS+Drought","NS+Ni"))
+#ordination
+ord.pcoa.bray <- ordinate(ps.bact.decontam.af_prop, method="PCoA", distance="bray")
+#Figure 4
+bg.facet <-plot_ordination(ps.bact.decontam.af_prop, ord.pcoa.bray, color="pds") +
+  scale_color_discrete(labels = c("0"="Initial", "1"="Seedling", "2"="Vegetative", "3"="Early Flowering", "4"="Late Flowering")) +
+  #scale_color_manual(breaks=c("A","B","C","D","E","F"),
+                    # values=c("#E69F00","#56B4E9","#009E73","#F0E442","#0072B2","#D55E00"), labels=soil_let_labels) +
+  facet_grid(microbe_type~soil_stress_new, labeller=labeller(microbe_type = microbe_labels)) +
+  theme_bw() + theme(text = element_text(size=20)) +
+  geom_point(size=5)+
+  theme(legend.text = element_text(size = 20)) + 
+  guides(color=guide_legend(title="Plant Developmental Phase")) 
+  #labs(title="PCoA of Bray-Curtis Dissimilarity")
+#+ scale_color_viridis(option="inferno")
+bg.facet
+#ggsave("/Users/anigwe/Desktop/feature_image_test.png", height=223, width=400, units='mm', dpi=400)
+```
+##Figure 5, Supplemental Figure 7, Supplemental Figure 8
+###Are there differentially abundant microbes? - random forest?
+```{r}
+#ps.bact.decontam.af_phyla<-tax_glom(ps.bact.decontam.af, "Phylum")
+#ps.bact.decontam.af_family<-tax_glom(ps.bact.decontam.af, "Family")
+#ps.bact.decontam.af_genus<-tax_glom(ps.bact.decontam.af, "Genus")
+#ps.bact.decontam.af_asv<-ps.bact.decontam.af
+```
+```{r}
+ps.bact.decontam.af.4 <- ps.bact.decontam.af %>%
+  subset_samples(
+    pds=="4")
+
+ps.bact.decontam.af.4
+
+ps.bact.decontam.ad <- ps.bact.decontam %>%
+  subset_samples(
+    soil_let == "A" |
+    soil_let == "B" |
+    soil_let == "C" |
+    soil_let == "D" )
+
+ps.bact.decontam.ad <- ps.bact.decontam.ad %>%
+  subset_samples(pds!="5")
+
+ps.bact.decontam.ad
+```
+```{r}
+library(randomForest)
+library(ggplot2)
+library(phyloseq)
+library(knitr)
+
+# Make a dataframe with OTUs as column and samples as rows
+predictors <- otu_table(ps.bact.decontam.af_prop)
+
+# Make one column for our outcome/response variable 
+response <- as.factor(sample_data(ps.bact.decontam.af_prop)$soil_let)
+
+# Combine them into 1 data frame
+rf.data <- data.frame(response, predictors)
+
+#set seed and run random forest
+set.seed(2)
+erie.classify <- randomForest(response~., data = rf.data, ntree = 999)
+
+#determine OOB estimate of error rate; rerun randomForest and increase ntree if OOB is too high
+print(erie.classify)
+
+# Make a data frame with predictor names and their importance
+imp <- importance(erie.classify)
+imp <- data.frame(predictors = rownames(imp), imp)
+
+# Order the predictor levels by importance
+imp.sort <- arrange(imp, desc(MeanDecreaseGini))
+imp.sort$predictors <- factor(imp.sort$predictors, levels = imp.sort$predictors)
+
+# Select the top 20 predictors
+imp.20 <- imp.sort[1:20, ]
+
+# visualize top 20 predictors
+ggplot(imp.20, aes(x = predictors, y = MeanDecreaseGini)) +
+  geom_bar(stat = "identity", fill = "indianred") +
+  coord_flip() +
+  ggtitle("Most important OTUs for classifying soil samples\n into serpentine or nonserpentine")
+  
+# Create a table of OTUs
+otunames <- imp.20$predictors
+r <- rownames(tax_table(ps.bact.decontam.af_prop)) %in% otunames
+kable(tax_table(ps.bact.decontam.af_prop)[r, ])
+
+#subset top 20 OTUs for plotting
+eerie <- subset_taxa(ps.bact.decontam.af_prop, taxa_names(ps.bact.decontam.af_prop) %in% otunames)
+plot_bar(eerie)
+
+#convert phyloseq object to data frame for visualization and data manipulation
+eerie.df <- psmelt(eerie)
+
+#log transform abundances for visualization
+eerie.df$LogAbund <- log10(eerie.df$Abundance +1)
+
+#visualize abundances
+subset.eerie <- ggplot(eerie.df, aes(x=pds, y=LogAbund, fill=soil_let)) +
+facet_wrap(Genus~OTU~Phylum, scale="free") +
+  #scale_x_discrete(position="top") + coord_flip() +
+  stat_summary(fun = mean, geom = "bar", color="black", position = "dodge") + 
+  stat_summary(fun.data = mean_se, geom = "errorbar", position = "dodge") +
+  #expand_limits(y=c(0,2)) +
+  theme_classic() +
+  guides(fill=FALSE) +
+  #scale_y_continuous(trans='log10+1')+
+  #facet_wrap(~soil, scales="free") +
+  theme(text = element_text(size=9), axis.text.x = element_text(angle = 45, hjust = 1), plot.title = element_text(hjust=0.0)) + labs(title="Differential taxa", subtitle="by soil type") + scale_x_discrete(labels=c("." = "Bulk", "Collinsia" = "C. sparsiflora",
+                              "Gilia" = "G. tricolor", "Plantago" = "P. erecta", "Trifolium" = "T. fucatum"))
+subset.eerie
+```
+
