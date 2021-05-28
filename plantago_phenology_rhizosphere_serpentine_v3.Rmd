@@ -409,7 +409,7 @@ subset.asv.af.1_4_soil_let <- subset_taxa(ps.bact.decontam.af.4, taxa_names(ps.b
 subset.asv.af.1_4_soil_let
 dat.asv.af.1_4_soil_let <- psmelt(subset.asv.af.1_4_soil_let) # create data frame
 #export differential asv_soil_lets
-write.csv(dat.asv.af.1_4_soil_let, file="/Users/anigwe/Desktop/serp_timeseries_figures/DESeq2_asv.af.4_soil_let_decontam.csv")
+#write.csv(dat.asv.af.1_4_soil_let, file="/Users/anigwe/Desktop/serp_timeseries_figures/DESeq2_asv.af.4_soil_let_decontam.csv")
 ```
 ```{r}
 #analysis of plant developmental stages 1,2,3,4 of soil treatments A,B,C,D (excludes E,F)
@@ -515,18 +515,20 @@ dat_af.4_ad_order<-dat_af.4_ad[order(dat_af.4_ad$Genussoil_let,-abs(dat_af.4_ad$
 dat_af.4_ad_order_unique<-dat_af.4_ad_order[!duplicated(dat_af.4_ad_order$Genussoil_let), ]        
 View(dat_af.4_ad_order_unique)
 
+#https://stackoverflow.com/questions/52341385/how-to-automatically-adjust-the-width-of-each-facet-for-facet-wrap
 dat_af.4_ad.plot<-ggplot(data=dat_af.4_ad_order_unique, aes(x=Genus, y=mean, fill=soil_let2)) + theme_bw() +
   geom_bar(stat="identity", position="dodge") +
 geom_errorbar(aes(x=Genus, ymin=mean-se, ymax=mean+se),position="dodge", colour="black") +
-  facet_grid(soil_let~Phylum, scales="free", labeller = labeller(microbe_type = microbe_labels)) +
+  facet_grid(soil_let~Phylum, scales="free", space='free_x', labeller = labeller(microbe_type = microbe_labels)) +
   scale_fill_brewer(palette="Spectral") +
-  theme(text = element_text(size=10), legend.position="bottom",
-        strip.text.y = element_text(face = "italic"),
-        axis.text.x = element_text(angle = 90lii)) +
+  theme(strip.text.x = element_text(angle = 90),
+        text = element_text(size=10), legend.position="bottom",
+        #strip.text.y = element_text(face = "italic"),
+        axis.text.x = element_text(angle = 45,hjust=1,vjust=1,face="italic")) +
   #scale_x_discrete(labels = c("A"="S", "B"="NS", "C"="S+NSm", "D"="NS+Sm", "E"="NS+Sm+Ni", "F"="NS+Sm+Drought")) +
   xlab("Genus") +
   ylab("Average Read Abundance") +
-  guides(fill=guide_legend(title="Soil Treatment"))
+  guides(fill=guide_legend(title="Soil Treatment", nrow=1))
 dat_af.4_ad.plot
 ```
 ```{r}
