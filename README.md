@@ -5,3 +5,5 @@ Igwe AN, Quasem B, Liu N, Vannette RL. Plant phenology influences rhizosphere mi
 
 The code and data can be accessed and manipulated interactively in R using this link from mybinder.org:\
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/anigwe/serpentine_plantago_phenology_rhizosphere/HEAD?urlpath=rstudio)
+
+Any questions about the data can be directed to the corresponding author.
